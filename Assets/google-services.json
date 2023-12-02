@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "637843256612",
+    "firebase_url": "https://theaswerqmaster-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "theaswerqmaster",
+    "storage_bucket": "theaswerqmaster.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:637843256612:android:ca34a242d39d94cc19efb1",
+        "android_client_info": {
+          "package_name": "com.AzraRakobar.QuizGame"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "637843256612-bu1e9li3gpiveqcv3d585hrmqc0bredb.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBZa2KBomlvvYh4-WnwKgDYOldpWHIQBBA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "637843256612-bu1e9li3gpiveqcv3d585hrmqc0bredb.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
