@@ -73,11 +73,15 @@ crashlytics-build.properties
 /[Aa]ssets/[Ss]treamingAssets/*
 
 # Firebase Component
+/[Aa]ssets/google-service.json
+/[Aa]ssets/google-service.json.meta
 /[Aa]ssets/[Ff]irebase/*
+/[Aa]ssets/[Ff]irebase.meta
 /[Aa]ssets/[Pp]lugins/*
+/[Aa]ssets/[Pp]lugins.meta
 /[Aa]ssets/[Ee]xternalDependencyManager/*
+/[Aa]ssets/[Ee]xternalDependencyManager.meta
 
-# Json files
-google-service.json
-google-service.json.meta
 
+# Text Mesh Pro
+/[Aa]ssets/[Tt]extMesh Pro/*
