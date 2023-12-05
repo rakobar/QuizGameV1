@@ -1,6 +1,11 @@
-﻿using System.Collections;
+﻿using System;
+using System.Threading;
+using System.Collections;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Collections.Generic;
+using UnityEngine.EventSystems;
+using UnityEngine.Networking;
 using UnityEngine;
 using UnityEngine.UI;
 using Firebase;
@@ -8,17 +13,12 @@ using Firebase.Database;
 using Firebase.Extensions;
 using Firebase.Storage;
 using TMPro;
-using System.Collections.Generic;
-using UnityEngine.EventSystems;
-using UnityEngine.Networking;
-using System;
-using System.Threading;
 //using Newtonsoft.Json;
 
 public class QuizRDB : MonoBehaviour
 {
     DatabaseReference dbref;
-    FirebaseStorage fs;
+    Firebase.Storage.FirebaseStorage fs;
 
     //UI Text Component for Quiz Data.
     [Header("Ui Component Needed")]
@@ -37,6 +37,7 @@ public class QuizRDB : MonoBehaviour
 
     //Deklarasi Firebase
     [Header("Firebase Require Variable")]
+    public string fsUrl = "gs://theaswerqmaster.appspot.com";
     public string tableName ; //future setted to default fix table from firebase
     public string quizkey ; //future implemented to automatic get by input user
     private protected int questSize = 10; //max soal to load. in future this value fixed get from firebase.
@@ -79,14 +80,14 @@ public class QuizRDB : MonoBehaviour
                 // Create and hold a reference to your FirebaseApp,
                 // where app is a Firebase.FirebaseApp property of your application class.
                 FirebaseApp app = FirebaseApp.DefaultInstance;
-
+                fs = FirebaseStorage.DefaultInstance;
                 //FirebaseApp.Create();
 
                 //GetRandQuestID();
-                //fs = FirebaseStorage.DefaultInstance;
+
 
                 //StartCoroutine(imgLoader());
-                StartCoroutine(getQuestData(tableName, quizkey));
+                StartCoroutine(getQuestData(tableName,quizkey));
                 // Set a flag here to indicate whether Firebase is ready to use by your app.
             }
             else
@@ -105,29 +106,115 @@ public class QuizRDB : MonoBehaviour
         //GetRandQuestID();
     }
 
-    void CheckInternetAvailability()
+    IEnumerator getQuestData(string tableReference, string quizKeyReference)
     {
-        // Mengecek ketersediaan koneksi internet
-        NetworkReachability reachability = Application.internetReachability;
+        dbref = FirebaseDatabase.DefaultInstance.RootReference;
+        // Set query & Get data dari Firebase
+        var query = dbref.Child(tableReference).Child(quizKeyReference).OrderByKey();
+        var fetchDataTask = query.GetValueAsync();
+        yield return new WaitUntil(() => fetchDataTask.IsCompleted); //tunggu hingga pengambilan data selesai.
 
-        // Memeriksa hasil dan memberikan respons sesuai
-        switch (reachability)
+        if (fetchDataTask.Exception != null)
         {
-            case NetworkReachability.NotReachable:
-                QuestText.text = "Tidak ada koneksi internet.";
-                //Debug.Log("Tidak ada koneksi internet.");
-                break;
-
-            case NetworkReachability.ReachableViaCarrierDataNetwork:
-                //Debug.Log("Terhubung melalui jaringan data operator seluler.");
-                QuestText.text = "Terhubung melalui jaringan data operator seluler.";
-                break;
-
-            case NetworkReachability.ReachableViaLocalAreaNetwork:
-                QuestText.text = "Terhubung melalui jaringan lokal (Wi-Fi atau Ethernet).";
-                Debug.Log("Terhubung melalui jaringan lokal (Wi-Fi atau Ethernet).");
-                break;
+            // Handling error
+            Debug.LogError(fetchDataTask.Exception);
+            yield break;
         }
+
+        DataSnapshot snapshot = fetchDataTask.Result;
+
+        //ambil semua data soal (id,desc,tipe,opsi,jawaban_benar) dan simpan ke class string DataSoal.
+        var dataSoal = snapshot.Children.Select(child => new DataSoal
+        {
+            IdQ = child.Key,
+            DescQ = child.Child("soal_desc").Value.ToString(),
+            QType = child.Child("soal_type").Value.ToString(),
+            Options = Enumerable.Range(1, 5) // Membuat urutan 1 sampai 5
+            .Select(i => child.Child($"option_{i}").Value.ToString()) // Mengambil nilai dari option_1, option_2, ..., option_5
+            .ToArray(),
+            TrueAnswer = child.Child("true_answ").Value.ToString()
+        }).ToList();
+
+
+        SattoloShuffle(dataSoal); //randomisasi dengan algoritma Sattolo Shuffle.
+        var dataSoalTaken = dataSoal.Take(questSize).ToList(); //ambil dataSoal yang sudah dirandomifikasi dengan jumlah yang sudah diatur pada questSize.
+        var idList = dataSoalTaken.Select(entry => entry.IdQ).ToList(); // ambil id soal pada dataSoalTaken.
+        ids.AddRange(idList); //Menyimpan idList(idsoal) ke variabel list global 'ids'
+        dataSoalList.AddRange(dataSoalTaken); //Menyimpan dataSoal ke variabel list 'dataSoalList'
+
+        //metode sementara untuk pengecekan soal yang memiliki data untuk di download.
+        string[] targetTipeSoal = { "Multiimgd", "Multidimg", "Multiimgd", "Multiimgf", "Essayimgd" };
+        if (dataSoalTaken.Any(data => targetTipeSoal.Contains(data.QType)))
+        {
+
+            var _img = dataSoalTaken
+                .Where(data => targetTipeSoal.Contains(data.QType))
+                .Select(data => data.IdQ).ToList();
+            Debug.Log("Quest id yang memiliki data untuk di download :" + _img.Count);
+
+            SearchData(_img); //cari data sekaligus download berdasarkan id soal.
+        }
+        else
+        {
+            //var _img = dataSoalTaken
+            //    .Where(data => !targetTipeSoal.Contains(data.QType))
+            //    .Select(data => data.IdQ).ToList();
+            //Debug.Log("Quest id yang tidak memiliki data untuk di download :" + _img.Count);
+            Debug.Log("Semua quest id tidak memiliki data untuk di download");
+        }
+
+        Debug.Log("Total Questions fetched : " + dataSoalTaken.Count); //mengecek apakah data soal sudah di dapat.
+        //Debug.Log("Total ID fetched: " + idList.Count); //mengecek apakah idList(idsoal) sudah didapat.
+        DisplayCurPage(); //memanggil fungsi DisplayCurPage untuk menampilkan data soal berdasarkan idsoal ke UI.
+    }
+
+    void SearchData<T>(List<T> prefixName) //mengambil list file berdasarkan prefixName
+    {
+        string[] extensionList = { ".jpg", ".png"};
+        string[] variableName = { "_soalimg", "_option1img", "_option2img", "_option3img", "_option4img", "_option5img"};
+
+        foreach (var prefix in prefixName)
+        {
+            foreach (var variable in variableName)
+            {
+                foreach (var ext in extensionList)
+                {
+                    var fileName = prefix + variable + ext; //example combination : Q1_soalimg.png
+                    StorageReference fileRef = fs.GetReferenceFromUrl(fsUrl)
+                        .Child("/" + tableName + "/" + quizkey + "/" + fileName); //data_quizsoal/(quizkey)/(datafiles)
+
+                    fileRef.GetMetadataAsync().ContinueWithOnMainThread(task => {
+                        if (task.IsCompleted && !task.IsFaulted && task.Result != null)
+                        {
+                            // File ada, lakukan sesuatu di sini
+                            Debug.Log("File dengan nama " + fileName + " ada!");
+                            DownloadFile(fileRef);
+                        }
+                        else
+                        {
+                            // File tidak ada, lakukan sesuatu di sini
+
+                            Debug.Log("File dengan nama "+fileName+" tidak ada.");
+                        }
+                    });
+                }
+            }
+        }
+    }
+    private void DownloadFile(StorageReference fileRef)
+    {
+        string localFilePath = Application.persistentDataPath + "/qData/" + fileRef.Name; //(local)/qData/
+
+        fileRef.GetFileAsync(localFilePath).ContinueWithOnMainThread(task => {
+            if (task.IsFaulted || task.IsCanceled)
+            {
+                Debug.LogError($"Failed to download file {fileRef.Name}, file is missing / not found");
+            }
+            else
+            {
+                Debug.Log($"File {fileRef.Name} downloaded successfully to {localFilePath}");
+            }
+        });
     }
 
     //IEnumerator imgLoader() {
@@ -168,6 +255,63 @@ public class QuizRDB : MonoBehaviour
     //        renderer.material.mainTexture = www.textureNonReadable;
     //    }
     //}
+
+    void CheckInternetAvailability()
+    {
+        // Mengecek ketersediaan koneksi internet
+        NetworkReachability reachability = Application.internetReachability;
+
+        // Memeriksa hasil dan memberikan respons sesuai
+        switch (reachability)
+        {
+            case NetworkReachability.NotReachable:
+                QuestText.text = "Tidak ada koneksi internet.";
+                //Debug.Log("Tidak ada koneksi internet.");
+                break;
+
+            case NetworkReachability.ReachableViaCarrierDataNetwork:
+                //Debug.Log("Terhubung melalui jaringan data operator seluler.");
+                QuestText.text = "Terhubung melalui jaringan data operator seluler.";
+                break;
+
+            case NetworkReachability.ReachableViaLocalAreaNetwork:
+                QuestText.text = "Terhubung melalui jaringan lokal (Wi-Fi atau Ethernet).";
+                Debug.Log("Terhubung melalui jaringan lokal (Wi-Fi atau Ethernet).");
+                break;
+        }
+    }
+
+    public void checkQuestionStatus() //cek apakah soal yang ditampilkan sudah memiliki jawaban atau tidak.
+    {
+        foreach (var idQuest in currentIds)
+        {
+            var matchAnswer = jawabanSoalList.Find(j => j.IdSoal == idQuest);
+
+            if (matchAnswer != null)
+            {
+                Debug.Log($"Data: {jawabanSoal.IdSoal}, {jawabanSoal.HasAnswer}, {jawabanSoal.Jawaban}, {jawabanSoal.Status}, {jawabanSoal.SoalType}, {jawabanSoal.PointEssay}");
+
+                if (matchAnswer.SoalType == 2) //jika soal essay maka set jawaban soal yang sudah di pilih.
+                {
+                    descAnswerText.text = jawabanSoal.Jawaban;
+                }
+
+                if ((matchAnswer.HasAnswer == true) && (matchAnswer.Status == true))
+                {
+                    Debug.Log("Soal Telah Memiliki Jawaban dengan status benar");
+                }
+                else if ((matchAnswer.HasAnswer == true) && (matchAnswer.Status == false))
+                {
+                    Debug.Log("Soal Telah Memiliki Jawaban dengan status salah");
+                }
+
+            }
+            else
+            {
+                Debug.Log("No entry found for ID :" + idQuest);
+            }
+        }
+    }
 
     public void btnAnswer(int answerTyp)
     {
@@ -226,6 +370,7 @@ public class QuizRDB : MonoBehaviour
                 jawabanSoal.Status = false;
                 jawabanSoal.PointEssay = similarityScore;
             }
+
         }
         else
         {
@@ -284,33 +429,6 @@ public class QuizRDB : MonoBehaviour
         notAnswered = questSize - (truePoint + falsePoint); // jumlah soal - jawaban benar & salah
         NextPage();
         Debug.Log("Data jawaban soal saat ini :" + jawabanSoalList.Count);
-    }
-
-    public void checkQuestionStatus() //cek apakah soal yang ditampilkan sudah memiliki jawaban atau tidak.
-    {
-        foreach (var idQuest in currentIds)
-        {
-            var matchAnswer = jawabanSoalList.Find(j => j.IdSoal == idQuest);
-
-            if (matchAnswer != null)
-            {
-                Debug.Log($"Data: {jawabanSoal.IdSoal}, {jawabanSoal.HasAnswer}, {jawabanSoal.Jawaban}, {jawabanSoal.Status}");
-
-                if ((matchAnswer.HasAnswer == true) && (matchAnswer.Status == true))
-                {
-                    Debug.Log("Soal Telah Memiliki Jawaban dengan status benar");
-                }
-                else if ((matchAnswer.HasAnswer == true) && (matchAnswer.Status == false))
-                {
-                    Debug.Log("Soal Telah Memiliki Jawaban dengan status salah");
-                }
-
-            }
-            else
-            {
-                Debug.Log("No entry found for ID :" + idQuest);
-            }
-        }
     }
 
     //void GenerateQuest(List<string> qid) // generate quest
@@ -405,7 +523,7 @@ public class QuizRDB : MonoBehaviour
         questType = $"{data.QType}";
         correctAnswer = $"{data.TrueAnswer}";
 
-        if (questType == "Multi")
+        if (questType == "Multi") //full text
         {
             AnswerContainer[0].SetActive(true);
             AnswerContainer[1].SetActive(false);
@@ -424,10 +542,26 @@ public class QuizRDB : MonoBehaviour
             }
             answers.Clear(); //bersihkan data jawaban untuk soal selanjutnya.
         }
+        else if (questType == "multiimgd") // questions text+img + answer text
+        {
+            Debug.Log("Questions IMG + text");
+        }
+        else if (questType == "multidimg") // questions text + answer img
+        {
+            Debug.Log("Questions text + IMG");
+        }
+        else if (questType == "multiimgf") // questions text+img + answer img
+        {
+            Debug.Log("Questions IMG full");
+        }
         else if (questType == "Essay")
         {
             AnswerContainer[0].SetActive(false);
             AnswerContainer[1].SetActive(true);
+        }
+        else if (questType == "Essayimgd") //questions img + answer text
+        {
+            Debug.Log("Questions IMG + text");
         }
         else
         {
@@ -437,54 +571,13 @@ public class QuizRDB : MonoBehaviour
         }
     }
 
-    IEnumerator getQuestData(string tableRefenrence, string quizKeyRefence) //idk this function buggy or not, i need to deep check for this.
-    {
-        dbref = FirebaseDatabase.DefaultInstance.RootReference;
-
-        // Set query & Get data dari Firebase
-        var query = dbref.Child(tableRefenrence).Child(quizKeyRefence).OrderByKey();
-        var fetchDataTask = query.GetValueAsync();
-        yield return new WaitUntil(() => fetchDataTask.IsCompleted); //tunggu hingga pengambilan data selesai.
-
-        if (fetchDataTask.Exception != null)
-        {
-            // Handling error
-            Debug.LogError(fetchDataTask.Exception);
-            yield break;
-        }
-
-        DataSnapshot snapshot = fetchDataTask.Result;
-
-        //ambil semua data soal (id,desc,tipe,opsi,jawaban_benar) dan simpan ke class string DataSoal.
-        var dataSoal = snapshot.Children.Select(child => new DataSoal
-        {
-            IdQ = child.Key,
-            DescQ = child.Child("soal_desc").Value.ToString(), 
-            QType = child.Child("soal_type").Value.ToString(),
-            Options = Enumerable.Range(1, 5) // Membuat urutan 1 sampai 5
-            .Select(i => child.Child($"option_{i}").Value.ToString()) // Mengambil nilai dari option_1, option_2, ..., option_5
-            .ToArray(),
-            TrueAnswer = child.Child("true_answ").Value.ToString() 
-        }).ToList();
-
-        // ambil id soal pada dataSoal
-        var idList = dataSoal.Select(entry => entry.IdQ).ToList();
-
-        SattoloShuffle(idList); //randomisasi idsoal dengan algoritma Sattolo Shuffle.
-        ids.AddRange(idList); //Menyimpan idList(idsoal) ke variabel list global 'ids'
-        dataSoalList.AddRange(dataSoal); //Menyimpan dataSoal ke variabel list 'dataSoalList'
-        //Debug.Log("Total Questions fetched : " + dataSoalList.Count); //mengecek apakah data soal sudah di dapat.
-        //Debug.Log("Total ID fetched: " + idList.Count); //mengecek apakah idList(idsoal) sudah didapat.
-        DisplayCurPage(); //memanggil fungsi DisplayCurPage untuk menampilkan data soal berdasarkan idsoal ke UI.
-    }
-
     void DisplayCurPage()
     {
         int start = curpageIndex * pageSize;
         int end = Mathf.Min(start + pageSize, questSize);
         var currentPageIds = ids.GetRange(start, end - start); // indeks satu soal ke halaman
         currentIds = currentPageIds; //simpan currentPageIds ke variable list global 'currentIds'
-
+        descAnswerText.text = null;
         //GenerateQuest(currentPageIds);// GenerateQuest untuk menampilkan data soal berdasarkan currentPageIds (ver. Online)
 
         //GenerateQuest untuk menampilkan data soal berdasarkan currentIds secara Lokal (ver. Offline)
