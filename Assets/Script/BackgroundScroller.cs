@@ -11,68 +11,13 @@ public class BackgroundScroller : MonoBehaviour
 
     private void Update()
     {
-        BGAnimatedIsActive(true, 5, 0.05f);
+        _img.uvRect = new Rect(_img.uvRect.position + (new Vector2(_x, _y) * _speed) * Time.deltaTime, _img.uvRect.size);
     }
 
-    public void BGAnimatedIsActive(bool anim, int pos, float speed)
+    public void BGAnimSet(float x, float y, float speed)
     {
-         //directions
         _speed = speed;
-
-        if (anim == true)
-        {
-            if (pos == 0) //non directional
-            {
-                _x = 0f;
-                _y = 0f;
-
-            }
-            else if (pos == 1) 
-            {
-                _x = 1f;
-                _y = 0f;
-            }
-            else if (pos == 2)
-            {
-                _x = 0f;
-                _y = 1f;
-            }
-            else if (pos == 3)
-            {
-                _x = -1f;
-                _y = 0f;
-            }
-            else if (pos == 4)
-            {
-                _x = 0f;
-                _y = -1f;
-            }
-            else if(pos == 5)
-            {
-                _x = 1f;
-                _y = 1f;
-            }
-            else if (pos == 6)
-            {
-                _x = -1f;
-                _y = 1f;
-            }
-            else if (pos == 7)
-            {
-                _x = 1f;
-                _y = -1f;
-            }
-            else if (pos == 8)
-            {
-                _x = -1f;
-                _y = -1f;
-            }
-
-            _img.uvRect = new Rect(_img.uvRect.position + (new Vector2(_x, _y) * _speed) * Time.deltaTime, _img.uvRect.size);
-        }
-        else
-        {
-            Debug.Log("BG Scroller is inactive!");
-        }
+        _x = x;
+        _y = y;
     }
 }

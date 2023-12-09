@@ -1,49 +1,41 @@
-﻿using System;
-using System.Threading;
-using System.Collections;
-using System.Linq;
-using System.Threading.Tasks;
-using System.Collections.Generic;
-using UnityEngine.EventSystems;
-using UnityEngine.Networking;
-using UnityEngine;
-using UnityEngine.UI;
-using Firebase;
+﻿using Firebase;
 using Firebase.Database;
 using Firebase.Extensions;
 using Firebase.Storage;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
 using TMPro;
-//using Newtonsoft.Json;
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 public class QuizRDB : MonoBehaviour
 {
     DatabaseReference dbref;
-    Firebase.Storage.FirebaseStorage fs;
+    FirebaseStorage fs;
 
     //UI Text Component for Quiz Data.
     [Header("Ui Component Needed")]
     public TMP_Text QuestText;
     public TMP_Text[] listMultiAnswerText; //multiply answer
-    public TMP_Text descAnswerText;
+    public TMP_InputField descAnswerText;
 
     [Header("Ui Component Needed (Actions)")]
     public GameObject[] QuestContainer; // 0 = text, 1 = img
     public GameObject[] AnswerContainer; // 0 = multi, 1 = essay
-
-
-
-    //UI Component
-    //public Button[] btnAnswers;
+    public Button[] btnMultiAnswers;
 
     //Deklarasi Firebase
     [Header("Firebase Require Variable")]
-    public string fsUrl = "gs://theaswerqmaster.appspot.com";
-    public string tableName ; //future setted to default fix table from firebase
-    public string quizkey ; //future implemented to automatic get by input user
-    private protected int questSize = 10; //max soal to load. in future this value fixed get from firebase.
+    private protected string fsUrl = "gs://theaswerqmaster.appspot.com"; //firebase storage reference url
+    private protected string tableName = "data_quizsoal"; // table name from firebase.
+    private string quizkey; //future implemented to automatic get by input user (on progress...)
+    private protected int questSize; //max soal to load. in future this value fixed get from firebase. (on progress...)
 
     //String for store another Quiz Data
-    public string questType;
+    private protected string questType;
     private protected string correctAnswer;
     private protected string pointQuest; //bobot nilai pertanyaan (pending....)
 
@@ -53,7 +45,8 @@ public class QuizRDB : MonoBehaviour
     //untuk pendataan soal dengan jawaban benar, salah & tidak terisi.
     private protected int truePoint;
     private protected int falsePoint;
-    private protected int notAnswered;
+    private protected int hasAnswer;
+    private protected int noAnswer;
 
     //[Header("Dummy Data")]
     ////dummy data img
@@ -62,12 +55,10 @@ public class QuizRDB : MonoBehaviour
 
     //list string untuk kelola data lokal.
     private List<string> ids = new List<string>(); //for store id soal
-    private List<string> currentIds = new List<string>(); //for current page array
+    private List<string> currentIds = new List<string>(); //for current page selected
     private List<string> answers = new List<string>(); //for store answer
     List<JawabanSoal> jawabanSoalList = new List<JawabanSoal>(); //for store picked answer
-    List<DataSoal> dataSoalList = new List<DataSoal>();
-    DataSoal dataSoal = new DataSoal();
-    JawabanSoal jawabanSoal = new JawabanSoal();
+    List<DataSoal> dataSoalList = new List<DataSoal>(); //for store questions data
 
     // Start is called before the first frame update
     void Start()
@@ -87,7 +78,7 @@ public class QuizRDB : MonoBehaviour
 
 
                 //StartCoroutine(imgLoader());
-                StartCoroutine(getQuestData(tableName,quizkey));
+                //StartCoroutine(getQuestData(tableName,quizkey));
                 // Set a flag here to indicate whether Firebase is ready to use by your app.
             }
             else
@@ -98,12 +89,15 @@ public class QuizRDB : MonoBehaviour
             }
         });
 
+        
+
     }
 
-    private void Update()
+    public void getQuestData(string qkey, int questionSize)
     {
-        //CheckInternetAvailability();
-        //GetRandQuestID();
+        questSize = questionSize;
+
+        StartCoroutine(getQuestData(tableName, qkey));
     }
 
     IEnumerator getQuestData(string tableReference, string quizKeyReference)
@@ -135,7 +129,6 @@ public class QuizRDB : MonoBehaviour
             TrueAnswer = child.Child("true_answ").Value.ToString()
         }).ToList();
 
-
         SattoloShuffle(dataSoal); //randomisasi dengan algoritma Sattolo Shuffle.
         var dataSoalTaken = dataSoal.Take(questSize).ToList(); //ambil dataSoal yang sudah dirandomifikasi dengan jumlah yang sudah diatur pada questSize.
         var idList = dataSoalTaken.Select(entry => entry.IdQ).ToList(); // ambil id soal pada dataSoalTaken.
@@ -154,23 +147,22 @@ public class QuizRDB : MonoBehaviour
 
             SearchData(_img); //cari data sekaligus download berdasarkan id soal.
         }
-        else
-        {
-            //var _img = dataSoalTaken
-            //    .Where(data => !targetTipeSoal.Contains(data.QType))
-            //    .Select(data => data.IdQ).ToList();
-            //Debug.Log("Quest id yang tidak memiliki data untuk di download :" + _img.Count);
-            Debug.Log("Semua quest id tidak memiliki data untuk di download");
-        }
+        //else
+        //{
+        //    var _img = dataSoalTaken
+        //        .Where(data => !targetTipeSoal.Contains(data.QType))
+        //        .Select(data => data.IdQ).ToList();
+        //    Debug.Log("Quest id yang tidak memiliki data untuk di download :" + _img.Count);
+        //    Debug.Log("Semua quest id tidak memiliki data untuk di download");
+        //}
 
-        Debug.Log("Total Questions fetched : " + dataSoalTaken.Count); //mengecek apakah data soal sudah di dapat.
-        //Debug.Log("Total ID fetched: " + idList.Count); //mengecek apakah idList(idsoal) sudah didapat.
+        //Debug.Log("Total Questions fetched : " + dataSoalTaken.Count); //mengecek apakah data soal sudah di dapat.
         DisplayCurPage(); //memanggil fungsi DisplayCurPage untuk menampilkan data soal berdasarkan idsoal ke UI.
     }
 
-    void SearchData<T>(List<T> prefixName) //mengambil list file berdasarkan prefixName
+    void SearchData<T>(List<T> prefixName) //pencarian file berdasarkan prefixName
     {
-        string[] extensionList = { ".jpg", ".png"};
+        string[] extensionList = { ".jpg", ".jpeg", ".png", ".gif"};
         string[] variableName = { "_soalimg", "_option1img", "_option2img", "_option3img", "_option4img", "_option5img"};
 
         foreach (var prefix in prefixName)
@@ -181,21 +173,19 @@ public class QuizRDB : MonoBehaviour
                 {
                     var fileName = prefix + variable + ext; //example combination : Q1_soalimg.png
                     StorageReference fileRef = fs.GetReferenceFromUrl(fsUrl)
-                        .Child("/" + tableName + "/" + quizkey + "/" + fileName); //data_quizsoal/(quizkey)/(datafiles)
-
+                        .Child("/" + tableName + "/" + quizkey + "/" + fileName); // path : (link_bucket)/data_quizsoal/(quizkey)/(fileName)
+                    
+                    //ambil meta data pada firebase untuk pengecekan file, jika ada lakukan download.
                     fileRef.GetMetadataAsync().ContinueWithOnMainThread(task => {
                         if (task.IsCompleted && !task.IsFaulted && task.Result != null)
                         {
-                            // File ada, lakukan sesuatu di sini
-                            Debug.Log("File dengan nama " + fileName + " ada!");
+                            //Debug.Log("File dengan nama " + fileName + " ada!");
                             DownloadFile(fileRef);
                         }
-                        else
-                        {
-                            // File tidak ada, lakukan sesuatu di sini
-
-                            Debug.Log("File dengan nama "+fileName+" tidak ada.");
-                        }
+                        //else
+                        //{
+                        //    Debug.Log("File dengan nama "+fileName+" tidak ada.");
+                        //}
                     });
                 }
             }
@@ -203,12 +193,12 @@ public class QuizRDB : MonoBehaviour
     }
     private void DownloadFile(StorageReference fileRef)
     {
-        string localFilePath = Application.persistentDataPath + "/qData/" + fileRef.Name; //(local)/qData/
+        string localFilePath = Application.persistentDataPath + "/qData/" + fileRef.Name; // saving path : (local)/qData/
 
         fileRef.GetFileAsync(localFilePath).ContinueWithOnMainThread(task => {
             if (task.IsFaulted || task.IsCanceled)
             {
-                Debug.LogError($"Failed to download file {fileRef.Name}, file is missing / not found");
+                Debug.LogError($"Failed to download file {fileRef.Name}");
             }
             else
             {
@@ -256,6 +246,10 @@ public class QuizRDB : MonoBehaviour
     //    }
     //}
 
+    void AbilityChecker()
+    {
+
+    }
     void CheckInternetAvailability()
     {
         // Mengecek ketersediaan koneksi internet
@@ -265,18 +259,18 @@ public class QuizRDB : MonoBehaviour
         switch (reachability)
         {
             case NetworkReachability.NotReachable:
-                QuestText.text = "Tidak ada koneksi internet.";
+                //QuestText.text = "Tidak ada koneksi internet.";
                 //Debug.Log("Tidak ada koneksi internet.");
                 break;
 
             case NetworkReachability.ReachableViaCarrierDataNetwork:
                 //Debug.Log("Terhubung melalui jaringan data operator seluler.");
-                QuestText.text = "Terhubung melalui jaringan data operator seluler.";
+                //QuestText.text = "Terhubung melalui jaringan data operator seluler.";
                 break;
 
             case NetworkReachability.ReachableViaLocalAreaNetwork:
-                QuestText.text = "Terhubung melalui jaringan lokal (Wi-Fi atau Ethernet).";
-                Debug.Log("Terhubung melalui jaringan lokal (Wi-Fi atau Ethernet).");
+                //QuestText.text = "Terhubung melalui jaringan lokal (Wi-Fi atau Ethernet).";
+                //Debug.Log("Terhubung melalui jaringan lokal (Wi-Fi atau Ethernet).");
                 break;
         }
     }
@@ -289,68 +283,86 @@ public class QuizRDB : MonoBehaviour
 
             if (matchAnswer != null)
             {
-                Debug.Log($"Data: {jawabanSoal.IdSoal}, {jawabanSoal.HasAnswer}, {jawabanSoal.Jawaban}, {jawabanSoal.Status}, {jawabanSoal.SoalType}, {jawabanSoal.PointEssay}");
+                Debug.Log($"Data Jawaban : {matchAnswer.IdSoal}, {matchAnswer.HasAnswer}, {matchAnswer.Jawaban}, {matchAnswer.Status}, {matchAnswer.SoalType}, {matchAnswer.PointEssay}");
 
-                if (matchAnswer.SoalType == 2) //jika soal essay maka set jawaban soal yang sudah di pilih.
+                //fitur sementara untuk mengecek soal yang telah di jawab
+                if(matchAnswer.SoalType == 1)
                 {
-                    descAnswerText.text = jawabanSoal.Jawaban;
-                }
+                    foreach (Button btnMulti in btnMultiAnswers)
+                    {
+                        TMP_Text btnText = btnMulti.GetComponentInChildren<TMP_Text>();
+                        Image btnImg = btnMulti.GetComponent<Image>();
 
-                if ((matchAnswer.HasAnswer == true) && (matchAnswer.Status == true))
-                {
-                    Debug.Log("Soal Telah Memiliki Jawaban dengan status benar");
+                        if (btnText.text == matchAnswer.Jawaban)
+                        {
+                            if (btnImg != null)
+                            {
+                                btnImg.color = Color.yellow;
+                            }
+                        }
+                        else
+                        {
+                            if (btnImg != null)
+                            {
+                                btnImg.color = Color.white;
+                            }
+                        }
+                    }
                 }
-                else if ((matchAnswer.HasAnswer == true) && (matchAnswer.Status == false))
-                {
-                    Debug.Log("Soal Telah Memiliki Jawaban dengan status salah");
-                }
-
             }
             else
             {
                 Debug.Log("No entry found for ID :" + idQuest);
+
+                foreach(Button btnMulti in btnMultiAnswers)
+                {
+                    Image btnImg = btnMulti.GetComponent<Image>();
+
+                    btnImg.color = Color.white;
+                }
+
             }
+
         }
     }
 
     public void btnAnswer(int answerTyp)
     {
-        bool isAnyAnswerUpdated = false; // Tandai apakah ada jawaban yang diupdate
+        var newAnswer = new JawabanSoal();
+        var storedAnswer = new JawabanSoal();
 
         foreach (string currentIdSoal in currentIds)
         {
-            jawabanSoal.IdSoal = currentIdSoal; // Set ID soal yang sedang aktif
+            newAnswer.IdSoal = currentIdSoal; // Set ID soal yang sedang aktif
         }
 
         //1 = multiply
-        if (answerTyp == 1)
+        if (answerTyp == 1) 
         {
-            TMP_Text currentJwb = EventSystem.current.currentSelectedGameObject.transform.GetChild(0).GetComponent<TMP_Text>(); //ambil komponen teks dari btn jawaban.
-            jawabanSoal.SoalType = answerTyp;
-            jawabanSoal.Jawaban = currentJwb.text; // Set jawaban yang dipilih
+            TMP_Text currentJwb = EventSystem.current.currentSelectedGameObject.transform.GetChild(0).GetComponent<TMP_Text>(); //ambil komponen teks dari object yang terpilih.
+            newAnswer.SoalType = answerTyp;
+            newAnswer.Jawaban = currentJwb.text; // Set jawaban yang dipilih
+            newAnswer.HasAnswer = true; // Set true ketika sudah dijawab.
+            newAnswer.PointEssay = 0; //default data if question essay point essay.
 
-            if (jawabanSoal.Jawaban == correctAnswer)
+            if (newAnswer.Jawaban == correctAnswer) //jika jawaban sama dengan kunci jawaban.
             {
-                jawabanSoal.Status = true; // Set true ketika jawaban benar.
+                newAnswer.Status = true; // Set true ketika jawaban benar.
             }
             else
             {
-                jawabanSoal.Status = false; // Set false ketika jawaban salah.
+                newAnswer.Status = false; // Set false ketika jawaban salah.
             }
-
-            jawabanSoal.HasAnswer = true; // Set true ketika sudah dijawab.
-            jawabanSoal.PointEssay = 0;
-            isAnyAnswerUpdated = true; // Jawaban salah, tandai bahwa ada jawaban yang dapat diupdate.
-
+            
         }
-        //2 = essay //becareful this isn't recommended for long answer....
+        //2 = essay, becareful this isn't recommended for long answer....
         else if (answerTyp == 2)
         {
             var currentJwb = descAnswerText.text;
-            jawabanSoal.SoalType = answerTyp;
-            jawabanSoal.HasAnswer = true;
-            isAnyAnswerUpdated = true;
-            jawabanSoal.Jawaban = currentJwb;
+            newAnswer.SoalType = answerTyp;
+            newAnswer.Jawaban = currentJwb;
+            newAnswer.HasAnswer = true;
+            
 
             //jaro-winkler performed on here...
             // lakukan pemrosesan teks pada kedua string yang akan di cocokan.
@@ -358,17 +370,17 @@ public class QuizRDB : MonoBehaviour
             string[] keyAnswer = ProcessText(correctAnswer);
 
             double similarityScore = CalculateJaroWinklerScore(userInput, keyAnswer); //hitung kemiripan antara input pengguna & kunci jawaban.
-            double threshold = 0.75; //batas poin untuk kemiripan string, atur sesuai kebutuhan
+            double threshold = 0.75; //batas poin untuk kemiripan string, atur sesuai kebutuhan,
 
             if(similarityScore >= threshold) //jika diatas poin threshold maka status jawaban akan benar, jika di bawah maka status jawaban salah.
             {
-                jawabanSoal.Status = true;
-                jawabanSoal.PointEssay = similarityScore;
+                newAnswer.Status = true;
+                newAnswer.PointEssay = similarityScore;
             }
             else
             {
-                jawabanSoal.Status = false;
-                jawabanSoal.PointEssay = similarityScore;
+                newAnswer.Status = false;
+                newAnswer.PointEssay = similarityScore;
             }
 
         }
@@ -377,58 +389,60 @@ public class QuizRDB : MonoBehaviour
             Debug.LogError("AnswerTyp : Undefined type "+answerTyp+" isn't implemented!");
         }
 
-
-        if (isAnyAnswerUpdated == true)
+        //fitur pengecekan jawaban, jika data jawaban ada maka akan dilakukan proses update, jika tidak ada jawaban akan dilakukan penambahan data.
+        if (newAnswer.HasAnswer == true)
         {
-            // Lakukan pembaruan hanya jika ada jawaban yang diupdate
-
             foreach (var idQuest in currentIds)
             {
+                //pencarian data jawaban pada jawabanSoalList.
                 var matchAnswer = jawabanSoalList.Find(j => j.IdSoal == idQuest);
 
+                /**jika data tidak kosong, akan dilakukan pengecekan data dengan membandingkan jawaban yang sudah ada dengan jawaban baru 
+                 * kondisi perubahan akan terjadi jika jawaban lama != jawaban baru. **/
+                
                 if (matchAnswer != null)
                 {
-                    // Data sudah ada, lakukan update jika ada perubahan
-                    if (matchAnswer.Jawaban != jawabanSoal.Jawaban || matchAnswer.Status != jawabanSoal.Status)
+                    if (matchAnswer.Jawaban != newAnswer.Jawaban)
                     {
                         matchAnswer.SoalType = answerTyp;
-                        matchAnswer.Jawaban = jawabanSoal.Jawaban;
-                        matchAnswer.HasAnswer = jawabanSoal.HasAnswer;
-                        matchAnswer.Status = jawabanSoal.Status;
-                        matchAnswer.PointEssay = jawabanSoal.PointEssay;
+                        matchAnswer.Jawaban = newAnswer.Jawaban;
+                        matchAnswer.HasAnswer = newAnswer.HasAnswer;
+                        matchAnswer.Status = newAnswer.Status;
+                        matchAnswer.PointEssay = newAnswer.PointEssay;
 
-                        //Debug.Log($"Data diperbarui untuk ID: {idQuest}");
+                        Debug.Log($"Data diperbarui untuk ID: {idQuest}");
                     }
                     else
                     {
-                        //Debug.Log($"Data tidak berubah untuk ID: {idQuest}");
+                        Debug.Log($"Data tidak berubah untuk ID: {idQuest}");
                     }
                 }
                 else
                 {
-                    //Debug.Log("Tidak ada entri ditemukan untuk ID :" + idQuest + ", Menambahkan Ke list Soal yang dijawab.");
+                    Debug.Log("Tidak ada entri ditemukan untuk ID :" + idQuest + ", Menambahkan Ke list Soal yang dijawab.");
+                    
+                    storedAnswer.IdSoal = idQuest;
+                    storedAnswer.SoalType = newAnswer.SoalType;
+                    storedAnswer.Jawaban = newAnswer.Jawaban;
+                    storedAnswer.HasAnswer = newAnswer.HasAnswer;
+                    storedAnswer.Status = newAnswer.Status;
+                    storedAnswer.PointEssay = newAnswer.PointEssay;
 
-                    // Buat objek baru dan tambahkan ke list
-                    var newAnswer = new JawabanSoal();
-                    newAnswer.IdSoal = idQuest;
-                    newAnswer.Jawaban = jawabanSoal.Jawaban;
-                    newAnswer.HasAnswer = jawabanSoal.HasAnswer;
-                    newAnswer.Status = jawabanSoal.Status;
-
-                    jawabanSoalList.Add(newAnswer);
+                    jawabanSoalList.Add(storedAnswer);
                 }
             }
         }
         else
         {
-            //Debug.Log("Tidak ada jawaban yang diupdate.");
+            Debug.Log("ID : "+newAnswer.IdSoal+"Tidak Memiliki Jawaban");
         }
 
         truePoint = jawabanSoalList.Count(j => j.Status); // ambil total jawaban benar dari jawabanSoalList
         falsePoint = jawabanSoalList.Count(j => !j.Status); // ambil total jawaban salah dari jawabanSoalList
-        notAnswered = questSize - (truePoint + falsePoint); // jumlah soal - jawaban benar & salah
+        noAnswer = questSize - (truePoint + falsePoint); // jumlah soal - jawaban benar & salah
+        hasAnswer = jawabanSoalList.Count; //hitung soal yang memiliki jawaban.
+        Debug.Log("Data list jawaban saat ini : "+ hasAnswer +"jawaban, dari "+ questSize +" soal.");
         NextPage();
-        Debug.Log("Data jawaban soal saat ini :" + jawabanSoalList.Count);
     }
 
     //void GenerateQuest(List<string> qid) // generate quest
@@ -518,7 +532,7 @@ public class QuizRDB : MonoBehaviour
     }
     void GenerateQuestLocal(DataSoal data)
     {
-        //var idQ = $"{data.IdQ}";
+        string idQ = $"{data.IdQ}";
         QuestText.text = $"{data.DescQ}";
         questType = $"{data.QType}";
         correctAnswer = $"{data.TrueAnswer}";
@@ -542,15 +556,15 @@ public class QuizRDB : MonoBehaviour
             }
             answers.Clear(); //bersihkan data jawaban untuk soal selanjutnya.
         }
-        else if (questType == "multiimgd") // questions text+img + answer text
+        else if (questType == "Multiimgd") // questions text+img + answer text
         {
             Debug.Log("Questions IMG + text");
         }
-        else if (questType == "multidimg") // questions text + answer img
+        else if (questType == "Multidimg") // questions text + answer img
         {
             Debug.Log("Questions text + IMG");
         }
-        else if (questType == "multiimgf") // questions text+img + answer img
+        else if (questType == "Multiimgf") // questions text+img + answer img
         {
             Debug.Log("Questions IMG full");
         }
@@ -566,8 +580,11 @@ public class QuizRDB : MonoBehaviour
         else
         {
             Debug.LogError("Error Quest Type :" + questType + "isn't Implemented yet!");
-            AnswerContainer[0].SetActive(false);
-            AnswerContainer[1].SetActive(false);
+
+            for(int i = 0; i < AnswerContainer.Length; i++)
+            {
+                AnswerContainer[i].SetActive(false);
+            }
         }
     }
 
@@ -580,11 +597,11 @@ public class QuizRDB : MonoBehaviour
         descAnswerText.text = null;
         //GenerateQuest(currentPageIds);// GenerateQuest untuk menampilkan data soal berdasarkan currentPageIds (ver. Online)
 
-        //GenerateQuest untuk menampilkan data soal berdasarkan currentIds secara Lokal (ver. Offline)
-        foreach (var ids in currentIds)
+        //GenerateQuest untuk menampilkan data soal berdasarkan currentPageIds (ver. Offline)
+        foreach (var ids in currentPageIds)
         {
             GenerateQuestLocal(ids);
-            Debug.Log($"Halaman {curpageIndex + 1}: {ids}");
+            //Debug.Log($"Halaman {curpageIndex + 1}: {ids}");
         }
         checkQuestionStatus();
     }
@@ -629,7 +646,7 @@ public class QuizRDB : MonoBehaviour
         }
     } // end of Sattolo Shuffle
 
-    //Jaro Winkler
+    //Jaro Winkler Procedure
     string[] ProcessText(string text)
     {
         // Pemrosesan teks: menghapus karakter khusus dan tokenisasi
@@ -731,6 +748,7 @@ public class JawabanSoal
     public string Jawaban { get; set; }
     public bool Status { get; set; }
     public double PointEssay { get; set; }
+    public int timetake { get; set; }
 
 }
 public class DataSoal //pending
