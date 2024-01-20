@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using TMPro;
 using UnityEngine;
+using UnityEngine.Networking;
 using UnityEngine.UI;
 
 public class MainController : MonoBehaviour
@@ -86,7 +87,7 @@ public class MainController : MonoBehaviour
         }//for btn start
         else if(btnCallType == 2)
         {
-            timeController.timeSet(true, timeToSet);
+            timeController.TimeSet(true, 2, timeToSet);
             uiActiveType(3);
         }
         else if(btnCallType == 3)
@@ -143,7 +144,7 @@ public class MainController : MonoBehaviour
 
         uiActiveType(2);
         setQuizData(true);
-        QuizController.getQuestData(idQuiz, qSize);
+        QuizController.getQuestData("0", idQuiz, qSize);
 
         quizBtn[1].interactable = true;
     }
