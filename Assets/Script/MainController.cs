@@ -20,7 +20,7 @@ public class MainController : MonoBehaviour
     [SerializeField] TMP_InputField quizKeyInput;
 
     [Header("Obj Component Needed")]
-    [SerializeField]GameObject[] uiComponent; //inputQuiz, startQuiz, quizPanel
+    [SerializeField]GameObject[] uiComponent; //inputQuiz, startQuiz, quizPanel, skillUI
 
     [Header("Important Component Needed")]
     [SerializeField] BackgroundScroller BackgroundController;
@@ -34,6 +34,7 @@ public class MainController : MonoBehaviour
     string idQuiz;
     string descQuiz;
     string skillStats;
+    string qPoint;
     int qSize;
     int timeToSet; //on minutes
 
@@ -58,6 +59,8 @@ public class MainController : MonoBehaviour
                 // Firebase Unity SDK is not safe to use here.
             }
         });
+
+
     }
 
     // Update is called once per frame
@@ -82,7 +85,7 @@ public class MainController : MonoBehaviour
                 StartCoroutine(findQuizKey(qText));
             }
 
-            quizKeyInput.text = null;
+            
             
         }//for btn start
         else if(btnCallType == 2)
@@ -115,6 +118,7 @@ public class MainController : MonoBehaviour
         if (idList.Any(id => id == quizKey))
         {
             StartCoroutine(getQuizData(quizKey));
+            quizKeyInput.text = null;
         }
 
     }
@@ -137,6 +141,7 @@ public class MainController : MonoBehaviour
         idQuiz = snapshot.Child("quiz_id").Value.ToString();
         descQuiz = snapshot.Child("quiz_desc").Value.ToString();
         skillStats = snapshot.Child("quiz_skillActive").Value.ToString();
+        qPoint = snapshot.Child("quiz_questionPoint").Value.ToString();
         qSize = int.Parse(snapshot.Child("quiz_maxsoaldisplay").Value.ToString());
         timeToSet = int.Parse(snapshot.Child("quiz_timeSet").Value.ToString());
 
@@ -145,6 +150,15 @@ public class MainController : MonoBehaviour
         uiActiveType(2);
         setQuizData(true);
         QuizController.getQuestData("0", idQuiz, qSize);
+
+        if(skillStats == "true")
+        {
+            uiComponent[3].SetActive(true);
+        }
+        else
+        {
+            uiComponent[3].SetActive(false);
+        }
 
         quizBtn[1].interactable = true;
     }

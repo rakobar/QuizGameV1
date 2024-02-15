@@ -9,7 +9,7 @@ public class AbilityController : MonoBehaviour
     [SerializeField] QuizRDB quizController;
     [SerializeField] Button[] AbilityBtn;
 
-    string[] abilityType = { "Time_Extend", "Time_Stop", "False_Display", "Display_TrueAnswer"/*, "Retry", "Skip", "Hints"*/, "Score_Multiplier"};
+    string[] abilityType = { "Time_Extend", "Time_Stop", "Time_Slow", "False_Display", "Display_TrueAnswer"/*, "Retry", "Skip", "Hints"*/, "Score_Multiplier", "2x, false 2x", "imune descore"};
     int timeSkillSpawn;
     float sec;
 
@@ -35,7 +35,6 @@ public class AbilityController : MonoBehaviour
         {
             timeController.TimeStop(true);
         }
-
         
     }
     public void FalseRemoveI()
@@ -50,9 +49,9 @@ public class AbilityController : MonoBehaviour
     {
         quizController.FalseRemover(3);
     }
-    public void ShowTrueAnswer()
+
+    public void AutoCorrectSkipQuestion()
     {
-        quizController.FalseRemover(4);
     }
     void ScoreMultiplier(float intMultiplier)
     {

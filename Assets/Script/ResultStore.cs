@@ -1,19 +1,26 @@
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
-
 public class ResultStore
 {
-    public int nilai;
-    public int trueAnswer;
-    public int falseAnswer;
-    public int noAnswer;
+    public int quiz_points;
+    public int quiz_trueAnswer;
+    public int quiz_falseAnswer;
+    public int quiz_noAnswer;
+    public string quiz_dateadded;
+    public string quiz_dateupdated;
 
     public ResultStore(int nilai, int trueAnswer, int falseAnswer, int noAnswer)
     {
-        this.nilai = nilai;
-        this.trueAnswer = trueAnswer;
-        this.falseAnswer = falseAnswer;
-        this.noAnswer = noAnswer;
+        this.quiz_points = nilai;
+        this.quiz_trueAnswer = trueAnswer;
+        this.quiz_falseAnswer = falseAnswer;
+        this.quiz_noAnswer = noAnswer;
+    }
+    public ResultStore(int nilai, int trueAnswer, int falseAnswer, int noAnswer, string dateadded, string dateupdated)
+    {
+        this.quiz_points = nilai;
+        this.quiz_trueAnswer = trueAnswer;
+        this.quiz_falseAnswer = falseAnswer;
+        this.quiz_noAnswer = noAnswer;
+        this.quiz_dateadded = dateadded;
+        this.quiz_dateupdated = dateupdated;
     }
 }
