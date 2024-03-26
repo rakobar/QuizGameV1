@@ -6,9 +6,18 @@ public class AnswersData
     public string AnswerDescription;
     public bool AnswerStatus;
     public double AnswerEssayPoint;
+    public double AnswerScorePoint;
     public int QuestionTimeTake;
 
     public AnswersData() { }
+    public AnswersData(string QID, int QType, bool QHasAnswer, string QADescription, bool QAStatus) 
+    {
+        this.QuestionID = QID;
+        this.QuestionType = QType;
+        this.QuestionHasAnswer = QHasAnswer;
+        this.AnswerDescription = QADescription;
+        this.AnswerStatus = QAStatus;
+    }
 
     public AnswersData(string QID, int QType, bool QHasAnswer, string QADescription, bool QAStatus, int QuestionTimeTake)
     {
