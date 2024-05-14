@@ -29,10 +29,12 @@ public class AlertController : MonoBehaviour
     }
     private void AlertUIDisabled()
     {
+        AudioController.Instance.PlayAudioSFX("ButtonClick");
         StartCoroutine(AlertAnimationOut());
     }
     private void CallFunc()
     {
+        AudioController.Instance.PlayAudioSFX("ButtonClick");
         if (wAction)
         {
             StartCoroutine(delayAction());
@@ -108,7 +110,7 @@ public class AlertController : MonoBehaviour
 
     private IEnumerator AlertAnimationIn(string AlertText, bool ShowImageAlert)
     {
-        if(TempAlertText != AlertText)
+        if(TempAlertText != AlertText & !AlertUI.activeSelf)
         {
 
             AlertUI.SetActive(true);

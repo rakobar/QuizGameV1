@@ -67,8 +67,8 @@ PlayerSettings:
   allowedAutorotateToLandscapeLeft: 1
   useOSAutorotation: 1
   use32BitDisplayBuffer: 1
-  preserveFramebufferAlpha: 0
-  disableDepthAndStencilBuffers: 0
+  preserveFramebufferAlpha: 1
+  disableDepthAndStencilBuffers: 1
   androidStartInFullscreen: 1
   androidRenderOutsideSafeArea: 1
   androidUseSwappy: 1
@@ -80,8 +80,8 @@ PlayerSettings:
   androidMinimumWindowHeight: 300
   androidFullscreenMode: 1
   defaultIsNativeResolution: 1
-  macRetinaSupport: 1
-  runInBackground: 0
+  macRetinaSupport: 0
+  runInBackground: 1
   captureSingleScreen: 0
   muteOtherAudioSources: 0
   Prepare IOS For Recording: 0
@@ -103,7 +103,7 @@ PlayerSettings:
   xboxEnableKinectAutoTracking: 0
   xboxEnableFitness: 0
   visibleInBackground: 1
-  allowFullscreenSwitch: 1
+  allowFullscreenSwitch: 0
   fullscreenMode: 1
   xboxSpeechDB: 0
   xboxEnableHeadOrientation: 0
@@ -132,16 +132,17 @@ PlayerSettings:
   vulkanNumSwapchainBuffers: 3
   vulkanEnableSetSRGBWrite: 0
   vulkanEnablePreTransform: 0
-  vulkanEnableLateAcquireNextImage: 0
+  vulkanEnableLateAcquireNextImage: 1
   vulkanEnableCommandBufferRecycling: 1
   m_SupportedAspectRatios:
-    4:3: 1
-    5:4: 1
+    4:3: 0
+    5:4: 0
     16:10: 1
     16:9: 1
-    Others: 1
-  bundleVersion: 1.0.1
-  preloadedAssets: []
+    Others: 0
+  bundleVersion: 1.2.2
+  preloadedAssets:
+  - {fileID: 102900000, guid: 10301e799f36d94499b5084670650686, type: 3}
   metroInputSource: 0
   wsaTransparentSwapchain: 0
   m_HolographicPauseOnTrackingLoss: 1
@@ -162,9 +163,9 @@ PlayerSettings:
   androidMaxAspectRatio: 2.1
   applicationIdentifier:
     Android: com.AzraRakobar.QuizGame
-    Standalone: com.DefaultCompany.2DProject
+    Standalone: com.AzraRakobar.QuizGame
   buildNumber:
-    Standalone: 0
+    Standalone: 1.2.1
     iPhone: 0
     tvOS: 0
   overrideDefaultApplicationIdentifier: 0
@@ -280,7 +281,7 @@ PlayerSettings:
   - m_BuildTarget: 
     m_Icons:
     - serializedVersion: 2
-      m_Icon: {fileID: 2800000, guid: a975085a8bc939c44a42bf874afcc4de, type: 3}
+      m_Icon: {fileID: 2800000, guid: d6aecb7f5740918478732f538aee2cd5, type: 3}
       m_Width: 128
       m_Height: 128
       m_Kind: 0

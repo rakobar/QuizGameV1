@@ -33,6 +33,7 @@ public class MainController : MonoBehaviour
     [SerializeField] AlertController AlertController;
     [SerializeField] LoginRDB LoginController;
     [SerializeField] AbilityController abilityController;
+    [SerializeField] LoadingController loadingController;
 
     //table reference name
     string targetTable = "data_quizkey";
@@ -47,8 +48,14 @@ public class MainController : MonoBehaviour
     int qPoint;
     int qSize;
     int timeToSet; //on seconds
+    [SerializeField] float intervalSpawnSkillTime;
+    int correctStreak = 3;
+    int limitActiveBtn = 3;
+
     private double tmpTime;
-    private string filePath;
+    private string[] filePath = new string[2];
+
+    private string UrlSurvey;
 
     float animatedTime = 0.30f; //0.25
 
@@ -102,10 +109,10 @@ public class MainController : MonoBehaviour
 
         //btn quiz,start,exit
 
-        foreach(var btn in ActionBtn)
-        {
-            btn.onClick.RemoveAllListeners();
-        }
+        //foreach(var btn in ActionBtn)
+        //{
+        //    btn.onClick.RemoveAllListeners();
+        //}
 
         ActionBtn[0].onClick.AddListener(btnQuiz);
         ActionBtn[1].onClick.AddListener(btnStart);
@@ -114,12 +121,19 @@ public class MainController : MonoBehaviour
         ActionBtn[3].onClick.AddListener(btnExit);
         ActionBtn[4].onClick.AddListener(btnBackToInput);
         ActionBtn[5].onClick.AddListener(btnEnd);
+        ActionBtn[5].gameObject.SetActive(false);
+        ActionBtn[7].gameObject.SetActive(false);
+        ActionBtn[8].onClick.AddListener(openUrl);
+        ActionBtn[9].onClick.AddListener(openUrl);
 
         //initial animated
         uiAnimatedActiveType(1);
         uiComponent[2].transform.localScale = Vector3.zero;
         uiComponent[1].transform.localScale = Vector3.zero;
         uiComponent[8].transform.localScale = Vector3.zero;
+
+        AudioController.Instance.PlayAudioBGM("BGM0");
+        ProceessURlSurvey();
     }
 
     // Update is called once per frame
@@ -127,13 +141,49 @@ public class MainController : MonoBehaviour
     {
         BackgroundController.BGAnimSet(1, 1, 0.05f);
         CheckInternetAvailability();
-
-        var timeRemain = timeController.getTime();
-        if (timeRemain <= 1 && timeController.getActiveState() == true && uiComponent[2].activeSelf == true)
+        if (timeController.getTime() <= 0.00001 && uiComponent[2].activeSelf == true)
         {
-            timeController.TimeStop(true, false);
+            //timeController.TimeStop(true, false);
             AlertController.AlertSet("Waktu Telah Habis.", true, TextAlignmentOptions.Center, false, EndQuiz);
         }
+
+        if (skillStats)
+        {
+            ActionBtn[5].gameObject.SetActive(false);
+            if (QuizController.HasAnswerTracking() >= qSize)
+            {
+                if (uiComponent[2].activeSelf)
+                {
+                    btnEnd();
+                }
+                
+            }
+        }
+        else
+        {
+            if (uiComponent[2].activeSelf)
+            {
+                ActiveEndBtn(qSize == QuizController.HasAnswerTracking() ? true : false);
+            }
+            
+        }
+
+        if (uiComponent[4].activeSelf)
+        {
+            if (!AudioController.Instance.bgmSource.isPlaying)
+            {
+                AudioController.Instance.PlayAudioBGM("BGM0");
+            }
+        }
+
+        if (uiComponent[2].activeSelf)
+        {
+            if (!AudioController.Instance.bgmSource.isPlaying)
+            {
+                AudioController.Instance.RandomPlayAudioBGM();
+            }
+        }
+
     }
     void CheckInternetAvailability()
     {
@@ -145,7 +195,7 @@ public class MainController : MonoBehaviour
         {
             case NetworkReachability.NotReachable:
 
-                if (uiComponent[6].activeSelf == true)
+                if (uiComponent[6].activeSelf)
                 {
                     AlertController.AlertSet("Tidak Ada Koneksi, Silahkan Cek Jaringan Anda", true, TextAlignmentOptions.Center, false, LoginController.CheckLoginStatus);
                 }
@@ -167,10 +217,68 @@ public class MainController : MonoBehaviour
 
     }
 
+    private IEnumerator ActiveEndBtn(bool status)
+    {
+        if (status)
+        {
+            if (!ActionBtn[5].gameObject.activeSelf)
+            {
+                ActionBtn[5].gameObject.SetActive(true);
+                ActionBtn[5].transform.LeanScale(Vector3.one, animatedTime);
+            }
+        }
+        else
+        {
+            if (ActionBtn[5].gameObject.activeSelf)
+            {
+                ActionBtn[5].transform.LeanScale(Vector3.zero, animatedTime).setEaseInBack();
+                yield return new WaitUntil(() => ActionBtn[5].transform.localScale == Vector3.zero);
+                ActionBtn[5].gameObject.SetActive(false);
+            }
+        }
+    }
+
+    private void ProceessURlSurvey()
+    {
+        StartCoroutine(getUrl());
+    }
+
+    private IEnumerator getUrl()
+    {
+        dbref = FirebaseDatabase.DefaultInstance.RootReference;
+        var query = dbref.Child("data_gameSurvey").GetValueAsync();
+        yield return new WaitUntil(()=> query.IsCompleted);
+
+        if(query.Exception != null)
+        {
+            AlertController.AlertSet($"Error getting URL Data : \n{query.Exception.InnerExceptions}");
+        }
+
+        DataSnapshot snapshot = query.Result;
+
+        if (snapshot.Child("Url").Value != null && snapshot.Child("BtnActive").Value != null)
+        {
+            UrlSurvey = snapshot.Child("Url").Value.ToString();
+            ActionBtn[8].gameObject.SetActive(bool.Parse(snapshot.Child("BtnActive").Value.ToString()));
+            ActionBtn[9].gameObject.SetActive(bool.Parse(snapshot.Child("BtnActive").Value.ToString()));
+        }
+        else
+        {
+            UrlSurvey = null;
+            ActionBtn[8].gameObject.SetActive(false);
+            ActionBtn[9].gameObject.SetActive(false);
+        }
+    }
+
+    private void openUrl()
+    {
+        Application.OpenURL(UrlSurvey);
+    }
+
     private void btnQuiz() //btnQuiz
     {
+        AudioController.Instance.PlayAudioSFX("ButtonClick");
         var qText = quizKeyInput.text.ToUpper();
-
         if (string.IsNullOrEmpty(qText) || string.IsNullOrWhiteSpace(qText))
         {
             AlertController.AlertSet("Tidak boleh kosong atau ada spasi di dalamnya. ", true, TextAlignmentOptions.Center);
@@ -178,11 +286,13 @@ public class MainController : MonoBehaviour
         else
         {
             StartCoroutine(findQuizKey(qText));
+            ActionBtn[1].gameObject.GetComponentInChildren<TMP_Text>().text = "Loading..";
         }
     }
 
     private void btnStart()
     {
+        AudioController.Instance.PlayAudioSFX("ButtonClick");
         StartCoroutine(StartProgress());
     }
 
@@ -260,17 +370,18 @@ public class MainController : MonoBehaviour
                 int elapseSeconds = (int)elapseTime.TotalSeconds;
                 int remainTime = (int)maxTime - elapseSeconds;
 
-                if (File.Exists(filePath))
+                if (File.Exists(filePath[0]))
                 {
                     if(remainTime > timeSet)
                     {
-                        var DateData = EDProcessing.Decrypt(File.ReadAllText(filePath), key, iv);
+                        var DateData = EDProcessing.Decrypt(File.ReadAllText(filePath[0]), key, iv);
                         //var FullDate = DateData.Split(",");
                         var remainingTimeOnFile = DateTime.Parse(DateData).Subtract(StartDate).TotalSeconds;
 
                         if((int)remainingTimeOnFile == 0 || (int)remainingTimeOnFile <= 1)
                         {
                             AlertController.AlertSet("Waktu Telah Habis !");
+                            //QuizController.resetQuizData();
                         }
                         else
                         {
@@ -305,7 +416,7 @@ public class MainController : MonoBehaviour
                             tmpTime = remainTime;
                             //timeController.TimeSet(true, 2, remainTime);
                         }
-
+                        File.WriteAllText(filePath[1], EDProcessing.Encrypt(DateTime.Now.ToString(), key, iv));
                         AlertController.AlertSet("Ingat, Yang kamu kerjakan di perangkat ini, tidak dapat di bawa ke perangkat lain!", false, TextAlignmentOptions.Center, true, processStart);
                     }
                 }
@@ -313,7 +424,8 @@ public class MainController : MonoBehaviour
             else
             {
                 AlertController.AlertSet("Waktu Telah Habis !");
-                DeleteData();
+                QuizController.DeleteData();
+                //QuizController.resetQuizData();
             }
         }
         else
@@ -338,7 +450,7 @@ public class MainController : MonoBehaviour
         var StartDate = DateTime.Now;
         if (StartDate >= DateTime.Parse(dateStart))
         {
-            if (File.Exists(filePath))
+            if (File.Exists(filePath[0]))
             {
                 //var timeData = File.ReadAllText(filePath);
                 //var TimeFromFile = float.Parse(EDProcessing.Decrypt(timeData, key, iv)) * 60;
@@ -353,13 +465,15 @@ public class MainController : MonoBehaviour
                 //    timeController.TimeSet(true, 2, TimeFromFile, skillStats);
                 //}
 
-                var DateData = EDProcessing.Decrypt(File.ReadAllText(filePath), key, iv);
+                var DateData = EDProcessing.Decrypt(File.ReadAllText(filePath[0]), key, iv);
                 //var FullDate = DateData.Split(",");
                 var remainingTimeOnFile = DateTime.Parse(DateData).Subtract(StartDate).TotalSeconds;
                 if((int)remainingTimeOnFile == 0 || (int)remainingTimeOnFile <= 1)
                 {
-                   AlertController.AlertSet("Waktu Telah Habis, Semua Soal & Jawaban Telah Di Reset!");
-                   DeleteData();
+                    AlertController.AlertSet("Waktu Telah Habis, Semua Soal & Jawaban Telah Di Reset!");
+                    QuizController.DeleteData();
+                    StartCoroutine(findQuizKey(idQuiz));
+                    //QuizController.resetQuizData();
                 }
                 else
                 {
@@ -377,6 +491,7 @@ public class MainController : MonoBehaviour
                 //timeController.SetTimeStopped(true);
                 //timeController.TimeSet(true, 2, timeSet, skillStats, filePath);
                 tmpTime = timeSet;
+                File.WriteAllText(filePath[1], EDProcessing.Encrypt(DateTime.Now.ToString(), key, iv));
                 AlertController.AlertSet("Ingat, Yang kamu kerjakan di perangkat ini, tidak dapat di bawa ke perangkat lain!", false, TextAlignmentOptions.Center, true, processStart);
                 //File.WriteAllText(filePath, EDProcessing.Encrypt(DateData, key, iv));
             }
@@ -400,64 +515,100 @@ public class MainController : MonoBehaviour
         }
     }
 
-    private void DeleteData()
-    {
-        string[] fileName = { $"{uid}_{idQuiz}_{skillStats}_QD", $"{uid}_{idQuiz}_{skillStats}_AD", $"{uid}_{idQuiz}_{skillStats}_ID", $"{uid}_{idQuiz}_{skillStats}_QTD" }; //contoh : 10011232_QUIZ03_Q
-        foreach (var nameFile in fileName)
-        {
-            var path = Path.Combine(Application.persistentDataPath, EDProcessing.HashSHA384("sessionQuizData"), EDProcessing.HashSHA384(nameFile));
-            if (File.Exists(path))
-            {
-                //menghapus file yang ditetapkan.
-                File.Delete(path);
-            }
-        }
-    }
+    //private void DeleteData()
+    //{
+    //    string[] fileName = { 
+    //        $"{uid}_{idQuiz}_{skillStats}_QD", 
+    //        $"{uid}_{idQuiz}_{skillStats}_AD", 
+    //        $"{uid}_{idQuiz}_{skillStats}_ID", 
+    //        $"{uid}_{idQuiz}_{skillStats}_QTD",
+    //        $"{uid}_{idQuiz}_{skillStats}_QSD",
+    //        $"{uid}_{idQuiz}_{skillStats}_SD0", 
+    //        $"{uid}_{idQuiz}_{skillStats}_SD1", 
+    //        $"{uid}_{idQuiz}_{skillStats}_SD2"}; //contoh : 10011232_QUIZ03_Q
+
+    //    foreach (var nameFile in fileName)
+    //    {
+    //        var path = Path.Combine(Application.persistentDataPath, EDProcessing.HashSHA384("sessionQuizData"), EDProcessing.HashSHA384(nameFile));
+    //        if (File.Exists(path))
+    //        {
+    //            //menghapus file yang ditetapkan.
+    //            File.Delete(path);
+    //        }
+    //    }
+    //}
 
     private void processStart()
     {
         //timeController.SetTimeStopped(false);
+        double timeElapse = 0;
+
+        if (File.Exists(filePath[1]))
+        {
+            var DateElapse = EDProcessing.Decrypt(File.ReadAllText(filePath[1]), key, iv);
+            timeElapse = (DateTime.Now - DateTime.Parse(DateElapse)).TotalSeconds;
+        }
 
         if (skillStats)
         {
-            timeController.TimeSet(true, 2, (int)tmpTime, skillStats, filePath);
+            timeController.TimeSet(true, 2, (int)tmpTime, (int)timeElapse, skillStats, filePath[0]);
+            abilityController.AbillitySet(skillStats, intervalSpawnSkillTime, correctStreak, limitActiveBtn, uid, idQuiz);
         }
         else
         {
-            timeController.TimeSet(true, 2, (int)tmpTime);
+            timeController.TimeSet(true, 2, (int)tmpTime, (int)timeElapse);
         }
+
+        StartCoroutine(uiAnimatedActiveType(6));
+
+        timeController.TimeStop(false);
 
         var EndDate = DateTime.Now.AddSeconds(tmpTime);
         var DateData = EndDate.ToString();
-        File.WriteAllText(filePath, EDProcessing.Encrypt(DateData, key, iv));
+        File.WriteAllText(filePath[0], EDProcessing.Encrypt(DateData, key, iv));
         StartCoroutine(uiAnimatedActiveType(3));
     }
 
     private void btnBack()
     {
+        AudioController.Instance.PlayAudioSFX("ButtonClick");
         StartCoroutine(uiAnimatedActiveType(1));
         setQuizData(false);
     }
     private void btnBackToInput()
     {
+        AudioController.Instance.PlayAudioSFX("ButtonClick");
         StartCoroutine(uiAnimatedActiveType(5));
     }
 
     private void btnEnd()
     {
-        AlertController.AlertSet("Apakah kamu yakin ingin langsung menyelesaikannya ?", false, TextAlignmentOptions.Center, true, EndQuiz);
+        if (skillStats)
+        {
+            AlertController.AlertSet("Quiz Telah Selesai !", false, TextAlignmentOptions.Center, false, EndQuiz);
+        }
+        else
+        {
+            AudioController.Instance.PlayAudioSFX("ButtonClick");
+            AlertController.AlertSet("Apakah kamu yakin ingin langsung menyelesaikannya ?", false, TextAlignmentOptions.Center, true, EndQuiz);
+        }
+        abilityController.AbillitySet();
     }
 
     private void btnExit()
     {
+        AudioController.Instance.PlayAudioSFX("ButtonClick");
         AlertController.AlertSet("Apakah kamu yakin ingin keluar ?", false, TextAlignmentOptions.Center, true, Application.Quit);
     }
 
     private void EndQuiz()
     {
         QuizController.ResultQuiz();
-        timeController.TimeStop(true, false);
+        timeController.setTimeElapse(false);
+        timeController.TimeStop(true);
+        abilityController.AbillitySet(); //default false.
         StartCoroutine(uiAnimatedActiveType(4));
+        //AudioController.Instance.bgmSource.Stop();
     }
 
     IEnumerator findQuizKey(string quizKey)
@@ -483,7 +634,7 @@ public class MainController : MonoBehaviour
         {
             idList = snapshot.Children.Select(child => child.Key).ToList();
 
-            if (idList.Any(id => id == quizKey))
+            if (idList.Any(id => string.Equals(id, quizKey, StringComparison.OrdinalIgnoreCase)))
             {
                 StartCoroutine(getQuizData(quizKey));
             }
@@ -540,7 +691,7 @@ public class MainController : MonoBehaviour
         //uiComponent[7].SetActive(!skillStats);
         uiComponent[7].transform.GetChild(1).gameObject.SetActive(!skillStats);
         uiComponent[7].transform.GetChild(2).gameObject.SetActive(!skillStats);
-        abilityController.AbillitySet(skillStats);
+        ActionBtn[7].gameObject.SetActive(skillStats);
 
         try
         {
@@ -566,7 +717,8 @@ public class MainController : MonoBehaviour
         try
         {
             QuizController.getQuestData(uid, idQuiz, qSize, qPoint, skillStats);
-            filePath = Path.Combine(Application.persistentDataPath, EDProcessing.HashSHA384("sessionQuizData"), EDProcessing.HashSHA384($"{uid}_{idQuiz}_{skillStats}_QTD"));
+            filePath[0] = Path.Combine(Application.persistentDataPath, EDProcessing.HashSHA384("sessionQuizData"), EDProcessing.HashSHA384($"{uid}_{idQuiz}_{skillStats}_QTD"));
+            filePath[1] = Path.Combine(Application.persistentDataPath, EDProcessing.HashSHA384("sessionQuizData"), EDProcessing.HashSHA384($"{uid}_{idQuiz}_{skillStats}_QTDE"));
         }
         catch (Exception e)
         {
@@ -595,7 +747,7 @@ public class MainController : MonoBehaviour
 
             quizMenuText[0].text = idQuiz;
             quizMenuText[1].text = descQuiz;
-            quizMenuText[2].text = timeToSet.ToString() + " Menit";
+            quizMenuText[2].text = timeToSet.ToString() + (skillStats ? $" Menit Permulaan" : " Menit");
             quizMenuText[3].text = qSize.ToString() + " Soal";
             quizMenuText[4].text = "Skill " + stat;
         }
@@ -648,7 +800,7 @@ public class MainController : MonoBehaviour
         {
             if(uiComponent[4].transform.localScale == Vector3.one)
             {
-                uiComponent[0].transform.LeanScale(Vector3.zero, animatedTime).setEaseInBack();
+                uiComponent[0].transform.LeanScale(Vector3.zero, animatedTime);
                 yield return new WaitUntil(() => uiComponent[0].transform.localScale == Vector3.zero);
                 uiComponent[0].SetActive(false);
                 uiComponent[1].SetActive(true);
@@ -664,14 +816,17 @@ public class MainController : MonoBehaviour
         //display quiz container
         else if(typ == 3)
         {
-            uiComponent[4].transform.LeanScale(Vector3.zero, animatedTime);
+            uiComponent[4].transform.LeanScale(Vector3.zero, animatedTime).setEaseInBack();
             yield return new WaitUntil(() => uiComponent[4].transform.localScale == Vector3.zero);
             uiComponent[4].SetActive(false);
             //uiComponent[1].SetActive(false);
             //uiComponent[0].SetActive(true);
             uiComponent[2].SetActive(true);
-            uiComponent[2].transform.LeanScale(Vector3.one, animatedTime);
+            uiComponent[2].transform.LeanScale(Vector3.one, animatedTime).setEaseOutBack();
             uiComponent[1].transform.LeanScale(Vector3.zero, animatedTime);
+            ActionBtn[3].transform.LeanScale(Vector3.zero, animatedTime);
+            ActionBtn[6].transform.LeanScale(Vector3.zero, animatedTime);
+            AudioController.Instance.bgmAudioFadeOut(animatedTime);
         }
         //display menu container + result
         else if(typ == 4)
@@ -683,18 +838,21 @@ public class MainController : MonoBehaviour
             yield return new WaitUntil(() => uiComponent[2].transform.localScale == Vector3.zero);
             uiComponent[2].SetActive(false);
             uiComponent[4].SetActive(true);
-            uiComponent[4].transform.LeanScale(Vector3.one, animatedTime);
+            uiComponent[4].transform.LeanScale(Vector3.one, animatedTime).setEaseOutBack();
             yield return new WaitUntil(() => uiComponent[4].transform.localScale == Vector3.one);
             uiComponent[8].SetActive(true);
             uiComponent[8].transform.LeanScale(Vector3.one, animatedTime);
-            
+            ActionBtn[3].transform.LeanScale(Vector3.one, animatedTime);
+            ActionBtn[6].transform.LeanScale(Vector3.one, animatedTime);
+            AudioController.Instance.bgmAudioFadeOut(animatedTime);
+
         }
         // result => input
         else if(typ == 5)
         {
             if (uiComponent[4].transform.localScale == Vector3.one)
             {
-                uiComponent[8].transform.LeanScale(Vector3.zero, animatedTime).setEaseInBack();
+                uiComponent[8].transform.LeanScale(Vector3.zero, animatedTime);
                 yield return new WaitUntil(() => uiComponent[8].transform.localScale == Vector3.zero);
                 uiComponent[8].SetActive(false);
 
@@ -713,6 +871,17 @@ public class MainController : MonoBehaviour
             }
 
             ActionBtn[1].interactable = false;
+        }
+        else if(typ == 6)
+        {
+            //control setting ui & ability guide ui
+            if (uiComponent[9].activeSelf)
+            {
+                uiComponent[9].transform.LeanScale(Vector3.zero, animatedTime).setEaseInBack();
+                yield return new WaitUntil(()=> uiComponent[9].transform.localScale == Vector3.zero);
+                uiComponent[9].SetActive(false);
+            }
+
         }
     }
 }

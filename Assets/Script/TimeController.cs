@@ -12,16 +12,16 @@ public class TimeController : MonoBehaviour
     public GameObject TimeContainer;
     [SerializeField] private Image TimeStopImage;
 
-    private float timeOnSec = 0f;
-    private float timeStored = 0f;
+    [SerializeField] private float timeOnSec = 0f;
+    [SerializeField] private float timeElapse = 0;
     private bool cdIsActive;
-    //private float sIncrement = 3600f;
-    private float sDecrement;
     private int styleTime;
-    [SerializeField]private bool timeStop = false;
+    private bool timeStop = false;
+    private bool timeElapseEnabled = false;
     private bool timeStopped = false;
-    private float timeStopTimer, decrementtimeStopTimer = 0;
-    //private bool anim = true;
+    private bool timeStopped1 = false;
+    private float timeStopTimer/*, decrementtimeStopTimer = 0*/;
+    
     private float animationTime = 0.3f;
     private Vector3 curPos;
     private float defcurPos;
@@ -68,28 +68,37 @@ public class TimeController : MonoBehaviour
 
         if (cdIsActive == true)
         {
-            sDecrement += Time.deltaTime;
+            //sDecrement += Time.deltaTime;
 
-            if (timeOnSec <= 1)
+            //if (timeOnSec <= 1)
+            //{
+            //    timeStop = true;
+            //}
+
+            //if (!timeStop) 
+            //{
+            //    if (sDecrement >= 1)
+            //    {
+            //        timeOnSec--;
+            //        sDecrement = 0;
+            //    }
+            //}
+
+            if(timeOnSec >= 0.00001 & timeElapseEnabled)
             {
-                timeStop = true;
+                timeElapse += Time.deltaTime;
             }
 
-            if (!timeStop) 
+            if (!timeStop)
             {
-                if (sDecrement >= 1)
+                timeOnSec -= Time.deltaTime;
+                if(timeOnSec <= 0.00001)
                 {
-                    timeOnSec--;
-                    sDecrement = 0;
+                    timeStop = true;
+                    timeOnSec = 0;
                 }
-
-                //if (skillstat)
-                //{
-                //    File.WriteAllText(filePath, EDProcessing.Encrypt((timeOnSec / 60).ToString(), key, iv));
-                //}
             }
         }
-
         //else
         //{
         //    sIncrement += Time.deltaTime;
@@ -98,24 +107,42 @@ public class TimeController : MonoBehaviour
         //    Debug.Log("Increment Time :" + hideTime);
         //}
 
+        //time stopped by time countdown.
         if (timeStopped)
         {
+            StartCoroutine(AnimatedFade(timeStopped));
             TimeStop(timeStopped);
-            if (timeStopTimer <= 1 && timeStopped)
+            timeStopTimer -= Time.deltaTime;
+
+            if(timeStopTimer <= 1)
             {
                 timeStopped = false;
                 TimeStop(timeStopped);
+                timeStopTimer = 0;
+                StartCoroutine(AnimatedFade(timeStopped));
             }
 
-            if(timeStopTimer != 0 || timeStopTimer > 0)
-            {
-                decrementtimeStopTimer += Time.deltaTime;
-                if(decrementtimeStopTimer >= 1)
-                {
-                    timeStopTimer--;
-                    decrementtimeStopTimer = 0;
-                }
-            }
+            //if (timeStopTimer <= 1 && timeStopped)
+            //{
+            //    timeStopped = false;
+            //    TimeStop(timeStopped);
+            //}
+
+            //if(timeStopTimer != 0 || timeStopTimer > 0)
+            //{
+            //    decrementtimeStopTimer += Time.deltaTime;
+            //    if(decrementtimeStopTimer >= 1)
+            //    {
+            //        timeStopTimer--;
+            //        decrementtimeStopTimer = 0;
+            //    }
+            //}
+        }
+
+        //time stopped by time lapse / hold after changing questions.
+        if (timeStopped1)
+        {
+            timeStopTimer += Time.deltaTime;
         }
 
         //atur tampilan
@@ -151,17 +178,15 @@ public class TimeController : MonoBehaviour
     //    sIncrement = 0f;
     //}
 
-    public void TimeSet(bool countDownIsActive, int timeModel, float timeOnSeconds, bool skillstat = false, string filePath = "")
+    public void TimeSet(bool countDownIsActive, int timeModel, float timeOnSeconds, float timeElapse = 0, bool skillstat = false, string filePath = "")
     {
         cdIsActive = countDownIsActive;
         styleTime = timeModel;
         timeOnSec = timeOnSeconds;
-        timeStored = timeOnSeconds;
         this.skillstat = skillstat;
         this.filePath = filePath;
-
-
-
+        timeElapseEnabled = true;
+        this.timeElapse = timeElapse;
     }
     public void TimeAdd(bool timeAdd, float OnSec)
     {
@@ -190,29 +215,44 @@ public class TimeController : MonoBehaviour
         }
     }
 
-    public void TimeStop(float time)
+    public void TimeStop(float time, bool allowSave = true)
     {
         if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath) && skillstat)
         {
             var CurrentEndDate = EDProcessing.Decrypt(File.ReadAllText(filePath), key, iv);
             timeStopTimer = time;
             timeStopped = true;
-            File.WriteAllText(filePath, EDProcessing.Encrypt(DateTime.Parse(CurrentEndDate).AddSeconds(time).ToString(), key, iv));
+
+            if (allowSave)
+            {
+                File.WriteAllText(filePath, EDProcessing.Encrypt(DateTime.Parse(CurrentEndDate).AddSeconds(time).ToString(), key, iv));
+            }
+            
+        }
+        else
+        {
+            Debug.LogError("Skill Tidak Di Izinkan.");
+        }
+    }
+    public void TimeStopInvariant(bool isActive)
+    {
+        if(!string.IsNullOrEmpty(filePath) && File.Exists(filePath) && skillstat)
+        {
+            var CurrentEndDate = EDProcessing.Decrypt(File.ReadAllText(filePath), key, iv);
+            timeStopped1 = isActive;
+            StartCoroutine(AnimatedFade(timeStopped1));
+            TimeStop(timeStopped1);
+            if (!timeStopped1)
+            {
+                File.WriteAllText(filePath, EDProcessing.Encrypt(DateTime.Parse(CurrentEndDate).AddSeconds(timeStopTimer).ToString(), key, iv));
+                timeStopTimer = 0;
+            }
         }
     }
 
-    public void TimeStop(bool isActive, bool wAnim = true)
+    public void TimeStop(bool isActive)
     {
         timeStop = isActive;
-        if (wAnim)
-        {
-            StartCoroutine(AnimatedFade(isActive));
-        }
-    }
-
-    public bool getActiveState()
-    {
-        return !timeStop;
     }
 
     public float getTime()
@@ -221,16 +261,28 @@ public class TimeController : MonoBehaviour
     }
     public float getTimeElapse()
     {
-        //getting time Lapse (totalTime - remainTime)
-        var timelapse = timeStored - timeOnSec;
+        return timeElapse;
+    }
+    public void setTimeElapse(bool set)
+    {
+        timeElapseEnabled = set ? true : false;
+    }
 
-        return timelapse;
+    public bool getTimeStoppedStatus()
+    {
+        return timeStopped;
+    }
+
+    public void ForceStopTime()
+    {
+        timeStopTimer = 0;
+        timeStopped = false;
+        StartCoroutine(AnimatedFade(timeStopped));
     }
 
     //Animation
     private IEnumerator AnimatedTime()
     {
-
         timerText[1].gameObject.SetActive(true);
         timerText[1].transform.LeanMoveLocal(new Vector2(curPos.x, defcurPos), animationTime).setEaseOutQuart();
         yield return new WaitUntil(() => Mathf.Approximately(timerText[1].transform.localPosition.y, defcurPos));
@@ -240,7 +292,6 @@ public class TimeController : MonoBehaviour
         yield return new WaitUntil(() => Mathf.Approximately(timerText[1].transform.localPosition.y, curPos.y));
         timerText[1].transform.LeanScale(Vector3.one, animationTime);
         timerText[1].gameObject.SetActive(false);
-
     }
 
     private IEnumerator AnimatedFade(bool animActive)
@@ -259,7 +310,7 @@ public class TimeController : MonoBehaviour
             {
                 LeanTween.value(TimeStopImage.gameObject, ImgAlphaUpdate, 0.35f, 0f, animationTime);
                 yield return new WaitUntil(() => TimeStopImage.color == defaultColor);
-                TimeStopImage.transform.gameObject.SetActive(true);
+                TimeStopImage.transform.gameObject.SetActive(false);
             }
         }
     }

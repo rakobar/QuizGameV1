@@ -6,14 +6,16 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using TMPro;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.UI;
 
 public class LoginRDB : MonoBehaviour
 {
-    DependencyStatus dependencyStatus;
+    //DependencyStatus dependencyStatus;
     FirebaseAuth auth;
     FirebaseUser user;
     DatabaseReference dbRef;
@@ -26,10 +28,13 @@ public class LoginRDB : MonoBehaviour
 
     [Header("Gameobject Needed")]
     [SerializeField] AlertController AlertController;
+    [SerializeField] LoadingController loadingController;
     [Tooltip("Login Obj, Menu Panel Obj")]
     [SerializeField] GameObject[] ComponentUINeeded;
+    [SerializeField] GameObject[] ComponentFormInput;
 
     private TMP_Text NamaUI, IDUI, KelasUI;
+    bool loginForm;
 
     //AES Key & IV 16 byte
     private static readonly byte[] key = Encoding.UTF8.GetBytes("AzraRakobarReinz"); // Ganti dengan kunci rahasia Anda
@@ -43,6 +48,9 @@ public class LoginRDB : MonoBehaviour
     void Start()
     {
         ComponentUINeeded[1].transform.localScale = Vector3.zero;
+
+        ComponentUINeeded[0].transform.GetChild(2).transform.gameObject.SetActive(true);
+        ComponentUINeeded[0].transform.GetChild(3).transform.gameObject.SetActive(false);
 
         NamaUI = ComponentUINeeded[2].transform.GetChild(1).gameObject.GetComponent<TMP_Text>();
         IDUI = ComponentUINeeded[2].transform.GetChild(2).gameObject.GetComponent<TMP_Text>();
@@ -61,15 +69,17 @@ public class LoginRDB : MonoBehaviour
 
         loginComponentBtn[0].onClick.AddListener(login); //login
         loginComponentBtn[1].onClick.AddListener(logoutUI); //logout
-        //loginComponentBtn[3].onClick.AddListener(guest); //Guest
+        loginComponentBtn[2].onClick.AddListener(switchForm); //logout
 
+        this.loginForm = PlayerPrefs.GetInt("login_LoginForm", this.loginForm ? 1 : 0) == 1;
+        
         //FirebaseApp.CheckAndFixDependenciesAsync().ContinueWith(task =>
         //{
         //    dependencyStatus = task.Result;
 
         //    if (dependencyStatus == DependencyStatus.Available)
         //    {
-                
+
         //    }
         //    else
         //    {
@@ -83,6 +93,8 @@ public class LoginRDB : MonoBehaviour
         auth = FirebaseAuth.DefaultInstance;
         dbRef = FirebaseDatabase.DefaultInstance.RootReference;
 
+
+        displayForm();
         CheckLoginStatus();
     }
 
@@ -113,7 +125,7 @@ public class LoginRDB : MonoBehaviour
             if (!signedIn && user != null)
             {
                 //Debug.Log("Signed out " + user.UserId);
-                AlertController.AlertSet("Berhasil Logout.");
+                //AlertController.AlertSet("Berhasil Logout.");
             }
 
             user = auth.CurrentUser;
@@ -140,18 +152,39 @@ public class LoginRDB : MonoBehaviour
 
         if(user != auth.CurrentUser && auth.CurrentUser != null)
         {
+            loadingController.LoadingDisplay(true);
             ComponentUINeeded[0].transform.localScale = Vector3.zero;
         }
     }
 
+    void switchForm()
+    {
+        this.loginForm = !this.loginForm;
+
+        PlayerPrefs.SetInt("login_LoginForm", this.loginForm ? 1 : 0);
+
+        displayForm();
+    }
+
+    void displayForm()
+    {
+        inputComponent[2].text = !this.loginForm ? PlayerPrefs.GetString("guestID") : null;
+        inputComponent[3].text = !this.loginForm ? PlayerPrefs.GetString("guestName") : null;
+        loginComponentBtn[0].onClick.RemoveAllListeners();
+        loginComponentBtn[0].onClick.AddListener(this.loginForm ? login : guest);
+        loginComponentBtn[2].transform.GetChild(0).transform.gameObject.GetComponent<TMP_Text>().text = this.loginForm ? "Pengguna" : "Tamu";
+        ComponentUINeeded[0].transform.GetChild(2).transform.gameObject.SetActive(this.loginForm);
+        ComponentUINeeded[0].transform.GetChild(3).transform.gameObject.SetActive(!this.loginForm);
+    }
     public void login()
     {
         var email = inputComponent[0].text;
         var pass = inputComponent[1].text;
 
-
+        AudioController.Instance.PlayAudioSFX("ButtonClick");
         if (!string.IsNullOrEmpty(email) && !string.IsNullOrEmpty(pass))
         {
+            loadingController.LoadingDisplay(true);
             checkLogin(email, pass);
         }
         else
@@ -181,46 +214,81 @@ public class LoginRDB : MonoBehaviour
     //    StartCoroutine(LoginToMenu(false));
     //}
 
-    //private void guest()
-    //{
-    //    string sId = inputComponent[2].text;
-    //    string sClass = inputComponent[3].text;
-    //    string sName = inputComponent[4].text;
+    private void guest()
+    {
+        IDUI.text = inputComponent[2].text;
+        NamaUI.text = inputComponent[3].text;
 
-    //    StartCoroutine(guestLogin(sId,sName,sClass));
-    //}
+        if(!string.IsNullOrWhiteSpace(IDUI.text) || !string.IsNullOrWhiteSpace(NamaUI.text))
+        {
+            AlertController.AlertSet("Pengingat, Pastikan Nama & IDmu Sudah Sesuai !", false, TextAlignmentOptions.Center, true, guestProcess);
+            
+        }
+        else
+        {
+            AlertInfo("insertnull",0);
+            cleartext();
+        }
+    }
 
-    //IEnumerator guestLogin(string sid, string sname, string sclass)
-    //{
-    //    var query = dbRef.Child("data_murid").Child(sid).GetValueAsync();
-    //    yield return new WaitUntil(() => query.IsCompleted);
+    private void guestProcess()
+    {
+        loadingController.LoadingDisplay(true);
+        StartCoroutine(guestLogin(IDUI.text, NamaUI.text, "Tidak Memiliki Kelas (Tamu)"));
+    }
 
-    //    //if (query.Exception != null)
-    //    //{
-    //    //    // Handling error
-    //    //    //Debug.LogError(query.Exception);
-    //    //    cleartext();
-    //    //    yield break;
-    //    //}
+    IEnumerator guestLogin(string sid, string sname, string sclass)
+    {
+        var query = dbRef.Child("data_akun").GetValueAsync();
+        //var saveVal = query.SetValueAsync();
+        yield return new WaitUntil(() => query.IsCompleted);
 
-    //    DataSnapshot snapshot = query.Result;
+        if (query.Exception != null)
+        {
+            // Handling error
+            //Debug.LogError(query.Exception);
+            AlertController.AlertSet($"Error : {query.Exception.InnerExceptions}");
+            cleartext();
+            yield break;
+        }
 
-    //    if(snapshot.Child("murid_id").Value == null || snapshot.Exists == false)
-    //    {
-    //        NamaUI.text = sname;
-    //        IDUI.text = sid;
-    //        KelasUI.text = sclass;
+        DataSnapshot snapshot = query.Result;
+        var listUser = new List<string>();
 
-    //        //masuk ke menu utama;
-    //        StartCoroutine(LoginToMenu(true));
-    //    }
-    //    else
-    //    {
-    //        AlertInfo("login", 4);
-    //        cleartext();
-    //    }
+        foreach(var snapData in snapshot.Children)
+        {
+            listUser.Add(snapData.Child("user_id").Value.ToString());
+        }
 
-    //}
+        if (!listUser.Contains(sid))
+        {
+            NamaUI.text = sname;
+            IDUI.text = sid;
+            KelasUI.text = sclass;
+
+            //send guest data to server
+
+            var guestDataQuery = dbRef.Child("data_murid");
+            guestDataQuery.Child(sid).Child("murid_name").SetValueAsync(sname);
+            guestDataQuery.Child(sid).Child("murid_id").SetValueAsync(sid);
+            guestDataQuery.Child(sid).Child("murid_class").SetValueAsync(sclass);
+
+            //simpan data guest
+            PlayerPrefs.SetString("guestID", sid);
+            PlayerPrefs.SetString("guestName", sname);
+
+            //masuk ke menu utama;
+            StartCoroutine(LoginToMenu(true));
+            loadingController.LoadingDisplay(false);
+        }
+        else
+        {
+            AlertInfo("login", 4);
+            cleartext();
+            PlayerPrefs.SetString("guestID", string.Empty);
+            PlayerPrefs.SetString("guestName", string.Empty);
+        }
+    }
 
     IEnumerator login(string email, string password)
     {
@@ -232,44 +300,25 @@ public class LoginRDB : MonoBehaviour
         {
             //Debug.LogError("Login Failed : " + loginData.Exception.InnerException.Message);
 
-            //FirebaseException firebaseException = loginData.Exception.GetBaseException() as FirebaseException;
-            //AuthError authError = (AuthError)firebaseException.ErrorCode;
+            FirebaseException firebaseException = loginData.Exception.GetBaseException() as FirebaseException;
+            AuthError authError = (AuthError)firebaseException.ErrorCode;
 
-            //switch (authError)
-            //{
-            //    case AuthError.UserDisabled:
-            //        AlertInfo("login", 3);
-            //        break;
-            //    case AuthError.WrongPassword:
-            //        AlertInfo("login", 0);
-            //        break;
-            //        AlertInfo("login", 0);
-            //        break;
-            //    case AuthError.MissingEmail:
-            //        failedMessage += "Email is missing";
-            //        break;
-            //    case AuthError.MissingPassword:
-            //        failedMessage += "Password is missing";
-            //        break;
-            //    default:
-            //        failedMessage = "Login Failed";
-            //        break;
-
-            //}
-
-            if (loginData.Exception.InnerException.Message.Contains("The user account has been disabled by an administrator"))
+            switch (authError)
             {
-                AlertInfo("login", 3);
-            }
-            else if (loginData.Exception.InnerException.Message.Contains("An internal error has occurred."))
-            {
-                ComponentUINeeded[0].transform.LeanScale(Vector3.one, time);
-            }
-            else
-            {
-                AlertInfo("login", 0);
-            }
+                case AuthError.UserDisabled:
+                    AlertInfo("login", 3);
+                    break;
+                case AuthError.WrongPassword:
+                    AlertInfo("login", 0);
+                    break;
+                case AuthError.NetworkRequestFailed:
+                    AlertInfo("login", 0);
+                    break;
+                default:
+                    AlertInfo("login", 0);
+                    break;
 
+            }
 
             cleartext();
             //loginAttempt++;
@@ -290,6 +339,7 @@ public class LoginRDB : MonoBehaviour
         {
             // Handling error
             //Debug.LogError(query.Exception);
+            loadingController.LoadingDisplay(false);
             AlertInfo("login", 2);
             HandleLogout();
             cleartext();
@@ -316,6 +366,7 @@ public class LoginRDB : MonoBehaviour
                 {
                     // Handling error
                     //Debug.LogError(dataMurid.Exception);
+                    loadingController.LoadingDisplay(false);
                     AlertInfo("login", 1);
                     cleartext();
                     yield break;
@@ -325,6 +376,7 @@ public class LoginRDB : MonoBehaviour
 
                 if (snapshotMurid.Child("murid_name").Value == null && snapshotMurid.Child("murid_class").Value == null)
                 {
+                    loadingController.LoadingDisplay(false);
                     AlertInfo("login", 2);
                     cleartext();
                     HandleLogout();
@@ -337,6 +389,10 @@ public class LoginRDB : MonoBehaviour
                     NamaUI.text = snapshotMurid.Child("murid_name").Value.ToString();
                     IDUI.text = snapshotMurid.Child("murid_id").Value.ToString();
                     KelasUI.text = snapshotMurid.Child("murid_class").Value.ToString();
+
+                    //reset data guest User
+                    PlayerPrefs.SetString ("guestID", string.Empty);
+                    PlayerPrefs.SetString ("guestName", string.Empty);
 
                     //masuk ke menu utama dan set semua string data user ke UI.
                     StartCoroutine(LoginToMenu(true));
@@ -354,6 +410,7 @@ public class LoginRDB : MonoBehaviour
             }
             else
             {
+                loadingController.LoadingDisplay(false);
                 AlertInfo("login", 1);
                 cleartext();
                 HandleLogout();
@@ -362,6 +419,7 @@ public class LoginRDB : MonoBehaviour
         }
         else
         {
+            loadingController.LoadingDisplay(false);
             AlertInfo("login", 0);
             cleartext();
             HandleLogout();
@@ -370,14 +428,27 @@ public class LoginRDB : MonoBehaviour
 
     void logoutUI()
     {
-        AlertController.AlertSet("Apakah Kamu Yakin ?", false, TextAlignmentOptions.Center, true, logout);
+        AudioController.Instance.PlayAudioSFX("ButtonClick");
+
+        if(!KelasUI.text.Contains("Tamu"))
+        {
+            AlertController.AlertSet("Apakah Kamu Yakin ?", false, TextAlignmentOptions.Center, true, logout);
+        }
+        else
+        {
+            logout();
+        }
     }
 
     void logout()
     {
+        loadingController.LoadingDisplay(true);
         HandleLogout();
         cleartext();
         //File.Delete(filePath[0]);
+
+        inputComponent[2].text = !this.loginForm ? PlayerPrefs.GetString("guestID") : null;
+        inputComponent[3].text = !this.loginForm ? PlayerPrefs.GetString("guestName") : null;
 
         NamaUI.text = string.Empty;
         IDUI.text = string.Empty;
@@ -407,22 +478,20 @@ public class LoginRDB : MonoBehaviour
         
         if (!status) //false = menu to login
         {
-            ComponentUINeeded[1].transform.LeanScale(Vector3.zero, time);
+            ComponentUINeeded[1].transform.LeanScale(Vector3.zero, time).setEaseInBack();
             yield return new WaitUntil(() => ComponentUINeeded[1].transform.localScale == Vector3.zero);
-            if (ComponentUINeeded[1].transform.localScale == Vector3.zero)
-            {
-                ComponentUINeeded[0].transform.LeanScale(Vector3.one, time);
-            }
+            ComponentUINeeded[0].transform.LeanScale(Vector3.one, time).setEaseOutBack();
+            yield return new WaitUntil(() => ComponentUINeeded[0].transform.localScale == Vector3.one);
+            loadingController.LoadingDisplay(false);
         }
         else
         {
             // true = login to menu
             ComponentUINeeded[0].transform.LeanScale(Vector3.zero, time).setEaseInBack();
             yield return new WaitUntil(() => ComponentUINeeded[0].transform.localScale == Vector3.zero);
-            if (ComponentUINeeded[0].transform.localScale == Vector3.zero)
-            {
-                ComponentUINeeded[1].transform.LeanScale(Vector3.one, time);
-            }
+            ComponentUINeeded[1].transform.LeanScale(Vector3.one, time).setEaseOutBack();
+            yield return new WaitUntil(() => ComponentUINeeded[1].transform.localScale == Vector3.one);
+            loadingController.LoadingDisplay(false);
 
         }
 
@@ -448,7 +517,7 @@ public class LoginRDB : MonoBehaviour
                 {1, "Akun Belum Aktif, Silahkan Hubungi Guru atau Pengelola."},
                 {2, "Data Diri Tidak Ditemukan Silahkan Hubungi Guru atau Pengelola."},
                 {3, "Akun Dinonaktifkan guna Keamanan, silahkan kontak guru atau Pengelola untuk mengaktifkan."},
-                {4, "Kamu Tidak Diizinkan Masuk Sebagai Tamu, Silahkan Hubungi Guru atau Pengelola."},
+                {4, "ID Telah Memiliki Akun, Tidak di izinkan masuk sebagai tamu."},
                 {5, "Logout Berhasil."}
             }
         },
@@ -481,5 +550,6 @@ public class LoginRDB : MonoBehaviour
             // Menampilkan pesan alert jika jenis alert tidak valid
             AlertController.AlertSet("Invalid alertType: Missing / not Implemented", true, TextAlignmentOptions.Center);
         }
+        loadingController.LoadingDisplay(false);
     }
 }

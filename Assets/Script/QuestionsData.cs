@@ -6,4 +6,5 @@ public class QuestionsData
     public string QuestionType;
     public string[] QuestionOptions;
     public string[] QuestionRightAnswer;
+    public string[] QuestionKeyword;
 }

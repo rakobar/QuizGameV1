@@ -1,11 +1,11 @@
 public class ResultStore
 {
     public string quiz_quizkey;
+    public string quiz_siswaid;
     public double quiz_points;
     public int quiz_trueAnswer;
     public int quiz_falseAnswer;
     public int quiz_noAnswer;
-    //public int quiz_timeClear;
     public string quiz_timeClear;
     public string quiz_dateadded;
     public string quiz_dateupdated;
@@ -19,8 +19,9 @@ public class ResultStore
         this.quiz_falseAnswer = falseAnswer;
         this.quiz_noAnswer = noAnswer;
     }
-    public ResultStore(string qkey, string nilaiAlphabet, double nilai, int trueAnswer, int falseAnswer, int noAnswer, string timeClear/*int timeClear*/, string dateadded, string dateupdated)
+    public ResultStore(string qkey, string uid, string nilaiAlphabet, double nilai, int trueAnswer, int falseAnswer, int noAnswer, string timeClear/*int timeClear*/, string dateadded, string dateupdated)
     {
+        this.quiz_siswaid = uid;
         this.quiz_quizkey = qkey;
         this.quiz_points = nilai;
         this.quiz_alphabetPoint = nilaiAlphabet;
