@@ -3,7 +3,7 @@ This is an advanced repository of TheAnswerQ that I've created before.
 
 
 A Quiz Game Contains :
-- Varoius Power-Ups Like Time Stop, Score Boost, False Remover.
+- Various Power-Ups Like Time Stop, Score Boost, False Remover.
 - 2 Model Questions (Multiply and Essay).
 
 Knows Bug :
