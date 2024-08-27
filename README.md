@@ -11,7 +11,7 @@ Knows Bug :
 - Power-up explanation display Defects on some devices.
 - The data downloader may sometimes stop or the data requirements may be miscalculated.
 
-Future Implement (iF Possible):
+Future Implement (If Possible):
 - Realtime Multiplayer
 - New Power-Ups For Multiplayer
 - New Question Model
